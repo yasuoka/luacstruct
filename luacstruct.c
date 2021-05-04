@@ -78,13 +78,17 @@ struct luacstruct {
 	TAILQ_HEAD(,luacstruct_field)	 sorted;
 };
 
+struct luacregeon {
+	enum luacstruct_type		 type;
+	int				 off;
+	size_t				 size;
+	int				 typref;
+};
+
 struct luacstruct_field {
-	enum luacstruct_type		 fieldtype;
 	const char			*fieldname;
-	int				 fieldoff;
-	size_t				 fieldsiz;
+	struct luacregeon		 regeon;
 	unsigned			 flags;
-	int				 extref;
 	SPLAY_ENTRY(luacstruct_field)	 tree;
 	TAILQ_ENTRY(luacstruct_field)	 queue;
 };
@@ -128,6 +132,10 @@ static int	 luacs_object_copy(lua_State *);
 static int	 luacs_object__next(lua_State *);
 static int	 luacs_object__pairs(lua_State *);
 static int	 luacs_object__gc(lua_State *);
+static int	 luacs_pushregeon(lua_State *, struct luacobject *,
+		    struct luacregeon *);
+static void	 luacs_pullregeon(lua_State *, struct luacobject *,
+		    struct luacregeon *);
 struct luacenum	*luacs_checkenum(lua_State*, int);
 struct luacenum_value
 		*luacs_enum_get0(struct luacenum *, intmax_t);
@@ -217,8 +225,8 @@ luacs_struct__gc(lua_State *L)
 	if (cs) {
 		while ((field = SPLAY_MIN(luacstruct_fields, &cs->fields)) !=
 		    NULL) {
-			if (field->extref > 0)
-				luacs_unref(L, field->extref);
+			if (field->regeon.typref > 0)
+				luacs_unref(L, field->regeon.typref);
 			SPLAY_REMOVE(luacstruct_fields, &cs->fields, field);
 			free((char *)field->fieldname);
 			free(field);
@@ -248,9 +256,9 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 		lua_pushstring(L, buf);
 		lua_error(L);
 	}
-	field->fieldtype = _type;
-	field->fieldoff = off;
-	field->fieldsiz = siz;
+	field->regeon.type = _type;
+	field->regeon.off = off;
+	field->regeon.size = siz;
 	field->flags = flags;
 	switch (_type) {
 	case LUACS_TOBJREF:
@@ -262,7 +270,7 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 			    (_type == LUACS_TOBJREF)? "struct" : tname);
 			lua_error(L);
 		}
-		field->extref = luacs_ref(L);
+		field->regeon.typref = luacs_ref(L);
 		break;
 	case LUACS_TINT64:
 	case LUACS_TUINT64:
@@ -276,7 +284,7 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 	}
 	SPLAY_INSERT(luacstruct_fields, &cs->fields, field);
 	TAILQ_FOREACH(field0, &cs->sorted, queue) {
-		if (field->fieldoff < field0->fieldoff)
+		if (field->regeon.off < field0->regeon.off)
 			break;
 	}
 	if (field0 == NULL)
@@ -364,70 +372,14 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 {
 	void	*ptr;
 
-	switch (field->fieldtype) {
-	case LUACS_TINT8:
-		lua_pushinteger(L, *(int8_t *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TUINT8:
-		lua_pushinteger(L, *(uint8_t *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TINT16:
-		lua_pushinteger(L, *(int16_t *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TUINT16:
-		lua_pushinteger(L, *(uint16_t *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TINT32:
-		lua_pushinteger(L, *(int32_t *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TUINT32:
-		lua_pushinteger(L, *(uint32_t *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TINT64:
-		lua_pushinteger(L, *(int64_t *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TUINT64:
-		lua_pushinteger(L, *(uint64_t *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TENUM:
-	    {
-		intmax_t		 value;
-		struct luacenum_value	*val;
-		struct luacenum		*ce;
-		switch (field->fieldsiz) {
-		case 1:	value = *(int8_t  *)(obj->ptr + field->fieldoff); break;
-		case 2:	value = *(int16_t *)(obj->ptr + field->fieldoff); break;
-		case 4:	value = *(int32_t *)(obj->ptr + field->fieldoff); break;
-		case 8:	value = *(int64_t *)(obj->ptr + field->fieldoff); break;
-		}
-		luacs_getref(L, field->extref);
-		ce = luacs_checkenum(L, -1);
-		lua_pop(L, 1);
-		val = luacs_enum_get0(ce, value);
-		if (val == NULL)
-			lua_pushinteger(L, value);
-		else
-			luacs_getref(L, val->ref);
-		break;
-	    }
-	case LUACS_TBOOL:
-		lua_pushboolean(L, *(bool *)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TSTRING:
-		lua_pushstring(L, (const char *) (obj->obj + field->fieldoff));
-		break;
-	case LUACS_TSTRPTR:
-		lua_pushstring(L, *(const char **)(obj->obj + field->fieldoff));
-		break;
-	case LUACS_TBYTEARRAY:
-		lua_pushlstring(L, (char *)obj->ptr + field->fieldoff,
-		    field->fieldsiz);
-		break;
+	switch (field->regeon.type) {
+	default:
+		return (luacs_pushregeon(L, obj, &field->regeon));
 	case LUACS_TOBJREF:
-		if (field->fieldsiz == 0) /* nested */
-			ptr = obj->ptr + field->fieldoff;
+		if (field->regeon.type == LUACS_TOBJENT)
+			ptr = obj->ptr + field->regeon.off;
 		else
-			ptr = *(void **)(obj->ptr + field->fieldoff);
+			ptr = *(void **)(obj->ptr + field->regeon.off);
 		if (ptr == NULL)
 			lua_pushnil(L);
 		else {
@@ -435,7 +387,7 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 			lua_getfield(L, -1, field->fieldname);
 			if (lua_isnil(L, -1)) {
 				lua_pop(L, 1);
-				luacs_getref(L, field->extref);
+				luacs_getref(L, field->regeon.typref);
 				luacs_newobject0(L, ptr);
 				lua_pushvalue(L, -1);
 				lua_setfield(L, -4, field->fieldname);
@@ -449,9 +401,6 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 		lua_getfield(L, -1, field->fieldname);
 		lua_remove(L, -2);
 		break;
-	default:
-		lua_pushnil(L);
-		break;
 	}
 
 	return (1);
@@ -463,7 +412,6 @@ luacs_object__newindex(lua_State *L)
 	struct luacstruct	*cs0;
 	struct luacobject	*obj, *ano;
 	struct luacstruct_field	 fkey, *field;
-	size_t			 siz;
 
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	fkey.fieldname = luaL_checkstring(L, 2);
@@ -475,103 +423,15 @@ readonly:
 			    field->fieldname);
 			lua_error(L);
 		}
-		switch (field->fieldtype) {
-		case LUACS_TINT8:
-			*(int8_t *)(obj->ptr + field->fieldoff) =
-			    lua_tointeger(L, 3);
-			break;
-		case LUACS_TUINT8:
-			*(uint8_t *)(obj->ptr + field->fieldoff) =
-			    lua_tointeger(L, 3);
-			break;
-		case LUACS_TINT16:
-			*(int16_t *)(obj->ptr + field->fieldoff) =
-			    lua_tointeger(L, 3);
-			break;
-		case LUACS_TUINT16:
-			*(uint16_t *)(obj->ptr + field->fieldoff) =
-			    lua_tointeger(L, 3);
-			break;
-		case LUACS_TINT32:
-			*(int32_t *)(obj->ptr + field->fieldoff) =
-			    lua_tointeger(L, 3);
-			break;
-		case LUACS_TUINT32:
-			*(uint32_t *)(obj->ptr + field->fieldoff) =
-			    lua_tointeger(L, 3);
-			break;
-		case LUACS_TINT64:
-			*(int64_t *)(obj->ptr + field->fieldoff) =
-			    lua_tointeger(L, 3);
-			break;
-		case LUACS_TUINT64:
-			*(uint16_t *)(obj->ptr + field->fieldoff) =
-			    lua_tointeger(L, 3);
-			break;
-		case LUACS_TBOOL:
-			*(bool *)(obj->ptr + field->fieldoff) =
-			    lua_toboolean(L, 3);
-			break;
-		case LUACS_TENUM:
-		    {
-			struct luacenum		*ce;
-			struct luacenum_value	*val;
-			void			*ptr;
-			intmax_t		 value;
-
-			luacs_getref(L, field->extref);
-			ce = luacs_checkenum(L, -1);
-			if (lua_type(L, 3) == LUA_TNUMBER) {
-				value = lua_tointeger(L, 3);
-				if (luacs_enum_get0(ce, value) == NULL) {
-					lua_pushfstring(L,
-					    "`%s' field must be a valid "
-					    "integer for `enum %s'",
-					    field->fieldname, ce->enumname);
-					lua_error(L);
-				}
-			} else if (lua_type(L, 3) == LUA_TUSERDATA) {
-				lua_pushcfunction(L, luacs_enum_memberof);
-				lua_pushvalue(L, -2);
-				lua_pushvalue(L, 3);
-				lua_call(L, 2, 1);
-				if (!lua_toboolean(L, -1)) {
-					lua_pushfstring(L,
-					    "`%s' field must be a member of "
-					    "`enum %s", field->fieldname,
-					    ce->enumname);
-					lua_error(L);
-				}
-				val = lua_touserdata(L, 3);
-				value = val->value;
-			}
-			ptr = obj->ptr + field->fieldoff;
-			switch (field->fieldsiz) {
-			case 1: *(int8_t  *)(ptr) = value; break;
-			case 2: *(int16_t *)(ptr) = value; break;
-			case 4: *(int32_t *)(ptr) = value; break;
-			case 8: *(int64_t *)(ptr) = value; break;
-			}
-		}
-			break;
-		case LUACS_TSTRING:
-		case LUACS_TBYTEARRAY:
-			luaL_checkstring(L, 3);
-			siz = lua_rawlen(L, 3);
-			luaL_argcheck(L, siz < field->fieldsiz, 3, "too long");
-			memset(obj->ptr + field->fieldoff, 0,
-			    field->fieldsiz);
-			memcpy(obj->ptr + field->fieldoff,
-			    lua_tostring(L, 3), MINIMUM(siz, field->fieldsiz));
-			if (field->fieldtype == LUACS_TSTRING)
-				*(char *)(obj->ptr + field->fieldoff +
-				    field->fieldsiz -1) = '\0';
+		switch (field->regeon.type) {
+		default:
+			luacs_pullregeon(L, obj, &field->regeon);
 			break;
 		case LUACS_TSTRPTR:
 			goto readonly;
 		case LUACS_TOBJREF:
 			/* get c struct of the field */
-			luacs_getref(L, field->extref);
+			luacs_getref(L, field->regeon.typref);
 			cs0 = luacs_checkstruct(L, -1);
 			lua_pop(L, 1);
 			/* given instance of struct */
@@ -583,13 +443,13 @@ readonly:
 				    cs0->typename);
 				lua_error(L);
 			}
-			if (field->fieldsiz == 0) {	/* nested */
+			if (field->regeon.type == LUACS_TOBJENT) {
 				lua_pushcfunction(L, luacs_object_copy);
 				lua_getfield(L, 1, field->fieldname);
 				lua_pushvalue(L, 3);
 				lua_call(L, 2, 0);
 			} else {
-				*(void **)(obj->ptr + field->fieldoff) =
+				*(void **)(obj->ptr + field->regeon.off) =
 				    ano->ptr;
 				/* use the same object */
 				luacs_getref(L, obj->tblref);
@@ -603,9 +463,6 @@ readonly:
 			lua_pushvalue(L, 3);
 			lua_setfield(L, -2, field->fieldname);
 			lua_pop(L, 1);
-			break;
-		default:
-			lua_pushnil(L);
 			break;
 		}
 	} else {
@@ -633,11 +490,12 @@ luacs_object_copy(lua_State *L)
 		lua_error(L);
 	}
 	TAILQ_FOREACH(field, &l->cs->sorted, queue) {
-		if (field->fieldsiz > 0)
-			memcpy((caddr_t)l->ptr + field->fieldoff,
-			    (caddr_t)r->ptr + field->fieldoff, field->fieldsiz);
-		else if (field->fieldtype == LUACS_TOBJREF ||
-		    field->fieldtype == LUACS_TEXTREF) {
+		if (field->regeon.size > 0)
+			memcpy((caddr_t)l->ptr + field->regeon.off,
+			    (caddr_t)r->ptr + field->regeon.off,
+			    field->regeon.size);
+		else if (field->regeon.type == LUACS_TOBJREF ||
+		    field->regeon.type == LUACS_TEXTREF) {
 			/* l[fieldname] = r[fieldname] */
 			lua_getfield(L, 2, field->fieldname);
 			lua_setfield(L, 1, field->fieldname);
@@ -692,6 +550,174 @@ luacs_object__gc(lua_State *L)
 	luacs_unref(L, obj->tblref);
 
 	return (0);
+}
+
+/* regeon */
+int
+luacs_pushregeon(lua_State *L, struct luacobject *obj,
+    struct luacregeon *regeon)
+{
+	switch (regeon->type) {
+	case LUACS_TINT8:
+		lua_pushinteger(L, *(int8_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TINT16:
+		lua_pushinteger(L, *(int16_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TINT32:
+		lua_pushinteger(L, *(int32_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TINT64:
+		lua_pushinteger(L, *(int64_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TUINT8:
+		lua_pushinteger(L, *(uint8_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TUINT16:
+		lua_pushinteger(L, *(uint16_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TUINT32:
+		lua_pushinteger(L, *(uint32_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TUINT64:
+		lua_pushinteger(L, *(uint64_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TBOOL:
+		lua_pushboolean(L, *(bool *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TSTRING:
+		lua_pushstring(L, (const char *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TSTRPTR:
+		lua_pushstring(L, *(const char **)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TENUM:
+	    {
+		intmax_t		 value;
+		struct luacenum_value	*val;
+		struct luacenum		*ce;
+		switch (regeon->size) {
+		case 1:	value = *(int8_t  *)(obj->ptr + regeon->off); break;
+		case 2:	value = *(int16_t *)(obj->ptr + regeon->off); break;
+		case 4:	value = *(int32_t *)(obj->ptr + regeon->off); break;
+		case 8:	value = *(int64_t *)(obj->ptr + regeon->off); break;
+		}
+		luacs_getref(L, regeon->typref);
+		ce = luacs_checkenum(L, -1);
+		lua_pop(L, 1);
+		val = luacs_enum_get0(ce, value);
+		if (val == NULL)
+			lua_pushinteger(L, value);
+		else
+			luacs_getref(L, val->ref);
+		break;
+	    }
+	case LUACS_TBYTEARRAY:
+		lua_pushlstring(L, (char *)obj->ptr + regeon->off,
+		    regeon->size);
+		break;
+	default:
+		lua_pushnil(L);
+		break;
+	}
+
+	return (1);
+}
+
+void
+luacs_pullregeon(lua_State *L, struct luacobject *obj,
+    struct luacregeon *regeon)
+{
+	size_t siz;
+
+	switch (regeon->type) {
+	case LUACS_TINT8:
+		*(int8_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		break;
+	case LUACS_TUINT8:
+		*(uint8_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		break;
+	case LUACS_TINT16:
+		*(int16_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		break;
+	case LUACS_TUINT16:
+		*(uint16_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		break;
+	case LUACS_TINT32:
+		*(int32_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		break;
+	case LUACS_TUINT32:
+		*(uint32_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		break;
+	case LUACS_TINT64:
+		*(int64_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		break;
+	case LUACS_TUINT64:
+		*(uint16_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		break;
+	case LUACS_TBOOL:
+		*(bool *)(obj->ptr + regeon->off) = lua_toboolean(L, 3);
+		break;
+	case LUACS_TENUM:
+	    {
+		struct luacenum		*ce;
+		struct luacenum_value	*val;
+		void			*ptr;
+		intmax_t		 value;
+
+		luacs_getref(L, regeon->typref);
+		ce = luacs_checkenum(L, -1);
+		if (lua_type(L, 3) == LUA_TNUMBER) {
+			value = lua_tointeger(L, 3);
+			if (luacs_enum_get0(ce, value) == NULL) {
+				lua_pushfstring(L,
+				    "must be a valid integer for `enum %s'",
+				    ce->enumname);
+				lua_error(L);
+			}
+		} else if (lua_type(L, 3) == LUA_TUSERDATA) {
+			lua_pushcfunction(L, luacs_enum_memberof);
+			lua_pushvalue(L, -2);
+			lua_pushvalue(L, 3);
+			lua_call(L, 2, 1);
+			if (!lua_toboolean(L, -1)) {
+				lua_pushfstring(L,
+				    "must be a member of `enum %s",
+				    ce->enumname);
+				lua_error(L);
+			}
+			val = lua_touserdata(L, 3);
+			value = val->value;
+		}
+		ptr = obj->ptr + regeon->off;
+		switch (regeon->size) {
+		case 1: *(int8_t  *)(ptr) = value; break;
+		case 2: *(int16_t *)(ptr) = value; break;
+		case 4: *(int32_t *)(ptr) = value; break;
+		case 8: *(int64_t *)(ptr) = value; break;
+		}
+	}
+		break;
+	case LUACS_TSTRING:
+	case LUACS_TBYTEARRAY:
+		luaL_checkstring(L, 3);
+		siz = lua_rawlen(L, 3);
+		luaL_argcheck(L, siz < regeon->size, 3, "too long");
+		memset(obj->ptr + regeon->off, 0, regeon->size);
+		memcpy(obj->ptr + regeon->off, lua_tostring(L, 3),
+		    MINIMUM(siz, regeon->size));
+		if (regeon->type == LUACS_TSTRING)
+			*(char *)(obj->ptr + regeon->off + regeon->size -1) =
+			    '\0';
+		break;
+	case LUACS_TOBJREF:
+	case LUACS_TEXTREF:
+		LUACS_ASSERT(L, 0);
+		break;
+	default:
+		lua_pushnil(L);
+		break;
+	}
 }
 
 /* enum */
