@@ -24,7 +24,6 @@
 #include <lua.h>
 
 enum luacstruct_type {
-	LUACS_TUNSIGNED,
 	LUACS_TINT8,
 	LUACS_TINT16,
 	LUACS_TINT32,
