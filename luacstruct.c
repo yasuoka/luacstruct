@@ -30,10 +30,11 @@
 
 #include "luacstruct.h"
 
-#define	METANAME_LUACS		"luacstruct"
-#define	METANAME_LUACS_ENUM	"luacenum"
-#define	METANAME_LUACS_OBJ	"luacstructobj"
-#define	METANAME_LUACS_ENUMVAL	"luacenumvalue"
+#define	METANAME_LUACSTRUCT	"luacstruct"
+#define	METANAME_LUACSENUM	"luacenum"
+#define	METANAME_LUACSTYPE	"luactype."	/* type registry prefix */
+#define	METANAME_LUACSTRUCTOBJ	"luacstructobj"
+#define	METANAME_LUACSENUMVAL	"luacenumval"
 #define	LUACS_REGISTRY_NAME	"luacstruct_registry"
 
 #if LUA_VERSION_NUM == 501
@@ -145,8 +146,7 @@ luacs_newstruct0(lua_State *L, const char *tname)
 	struct luacstruct	*cs;
 	char			 metaname[80];
 
-	snprintf(metaname, sizeof(metaname), "%s.%s", METANAME_LUACS,
-	    tname);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
 	if (!lua_isnil(L, -1)) {
 		cs = luacs_checkstruct(L, -1);
@@ -163,7 +163,7 @@ luacs_newstruct0(lua_State *L, const char *tname)
 	cs->typename = index(cs->metaname, '.') + 1;
 	SPLAY_INIT(&cs->fields);
 	TAILQ_INIT(&cs->sorted);
-	if ((ret = luaL_newmetatable(L, METANAME_LUACS)) != 0) {
+	if ((ret = luaL_newmetatable(L, METANAME_LUACSTRUCT)) != 0) {
 		lua_pushcfunction(L, luacs_struct__gc);
 		lua_setfield(L, -2, "__gc");
 	}
@@ -179,8 +179,7 @@ luacs_delstruct(lua_State *L, const char *tname)
 {
 	char			 metaname[80];
 
-	snprintf(metaname, sizeof(metaname), "%s.%s", METANAME_LUACS,
-	    tname);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, tname);
 	lua_pushnil(L);
 	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
 
@@ -190,7 +189,7 @@ luacs_delstruct(lua_State *L, const char *tname)
 struct luacstruct *
 luacs_checkstruct(lua_State *L, int csidx)
 {
-	return (luaL_checkudata(L, csidx, METANAME_LUACS));
+	return (luaL_checkudata(L, csidx, METANAME_LUACSTRUCT));
 }
 
 int
@@ -240,21 +239,12 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 	field->flags = flags;
 	switch (_type) {
 	case LUACS_TOBJREF:
-		snprintf(buf, sizeof(buf), "%s.%s", METANAME_LUACS, tname);
-		lua_getfield(L, LUA_REGISTRYINDEX, buf);
-		if (lua_isnil(L, -1)) {
-			lua_pushfstring(L, "`struct %s' is not registered.",
-			    tname);
-			lua_error(L);
-		}
-		field->extref = luacs_ref(L);
-		break;
 	case LUACS_TENUM:
-		snprintf(buf, sizeof(buf), "%s.%s", METANAME_LUACS_ENUM, tname);
+		snprintf(buf, sizeof(buf), "%s%s", METANAME_LUACSTYPE, tname);
 		lua_getfield(L, LUA_REGISTRYINDEX, buf);
 		if (lua_isnil(L, -1)) {
-			lua_pushfstring(L, "`enum %s' is not registered.",
-			    tname);
+			lua_pushfstring(L, "`%s %s' is not registered.",
+			    (_type == LUACS_TOBJREF)? "struct" : tname);
 			lua_error(L);
 		}
 		field->extref = luacs_ref(L);
@@ -299,8 +289,7 @@ luacs_newobject(lua_State *L, const char *tname, void *ptr)
 		abort();
 	}
 
-	snprintf(metaname, sizeof(metaname), "%s.%s", METANAME_LUACS,
-	    tname);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
 
 	ret = luacs_newobject0(L, ptr);
@@ -322,7 +311,7 @@ luacs_newobject0(lua_State *L, void *ptr)
 	obj->cs = cs;
 	lua_pushvalue(L, -2);
 	obj->csref = luacs_ref(L);
-	if ((ret = luaL_newmetatable(L, METANAME_LUACS_OBJ)) != 0) {
+	if ((ret = luaL_newmetatable(L, METANAME_LUACSTRUCTOBJ)) != 0) {
 		lua_pushcfunction(L, luacs_object__index);
 		lua_setfield(L, -2, "__index");
 		lua_pushcfunction(L, luacs_object__newindex);
@@ -346,7 +335,7 @@ luacs_object__index(lua_State *L)
 	struct luacstruct_obj	*obj;
 	struct luacstruct_field	 fkey, *field;
 
-	obj = luaL_checkudata(L, 1, METANAME_LUACS_OBJ);
+	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	fkey.fieldname = luaL_checkstring(L, 2);
 	if ((field = SPLAY_FIND(luacstruct_fields, &obj->cs->fields, &fkey))
 	    != NULL)
@@ -463,7 +452,7 @@ luacs_object__newindex(lua_State *L)
 	struct luacstruct_field	 fkey, *field;
 	size_t			 siz;
 
-	obj = luaL_checkudata(L, 1, METANAME_LUACS_OBJ);
+	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	fkey.fieldname = luaL_checkstring(L, 2);
 	if ((field = SPLAY_FIND(luacstruct_fields, &obj->cs->fields, &fkey))
 	    != NULL) {
@@ -573,7 +562,7 @@ readonly:
 			cs0 = luacs_checkstruct(L, -1);
 			lua_pop(L, 1);
 			/* given instance of struct */
-			ano = luaL_checkudata(L, 3, METANAME_LUACS_OBJ);
+			ano = luaL_checkudata(L, 3, METANAME_LUACSTRUCTOBJ);
 			if (cs0 != ano->cs) {
 				lua_pushfstring(L,
 				    "`%s' field must be an instance of "
@@ -621,8 +610,8 @@ luacs_object_copy(lua_State *L)
 	struct luacstruct_obj	*l, *r;
 	struct luacstruct_field	*field;
 
-	l = luaL_checkudata(L, 1, METANAME_LUACS_OBJ);
-	r = luaL_checkudata(L, 2, METANAME_LUACS_OBJ);
+	l = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	r = luaL_checkudata(L, 2, METANAME_LUACSTRUCTOBJ);
 	if (l->cs != r->cs) {
 		lua_pushfstring(L,
 		    "copying from `struct %s' instance to `struct %s' "
@@ -651,7 +640,7 @@ luacs_object__next(lua_State *L)
 	struct luacstruct_obj	*obj;
 	struct luacstruct_field	*field, fkey;
 
-	obj = luaL_checkudata(L, 1, METANAME_LUACS_OBJ);
+	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	if (lua_isnil(L, 2))
 		field = TAILQ_FIRST(&obj->cs->sorted);
 	else {
@@ -685,7 +674,7 @@ luacs_object__gc(lua_State *L)
 {
 	struct luacstruct_obj	*obj;
 
-	obj = luaL_checkudata(L, 1, METANAME_LUACS_OBJ);
+	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	luacs_unref(L, obj->csref);
 	luacs_unref(L, obj->tblref);
 
@@ -700,8 +689,7 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 	struct luacenum	*ce;
 	char		 metaname[80];
 
-	snprintf(metaname, sizeof(metaname), "%s.%s", METANAME_LUACS_ENUM,
-	    ename);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, ename);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
 	if (!lua_isnil(L, -1)) {
 		ce = luacs_checkenum(L, -1);
@@ -719,7 +707,7 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 	ce->enumname = index(ce->metaname, '.') + 1;
 	SPLAY_INIT(&ce->labels);
 	SPLAY_INIT(&ce->values);
-	if ((ret = luaL_newmetatable(L, METANAME_LUACS_ENUM)) != 0) {
+	if ((ret = luaL_newmetatable(L, METANAME_LUACSENUM)) != 0) {
 		lua_pushcfunction(L, luacs_enum__gc);
 		lua_setfield(L, -2, "__gc");
 		lua_pushcfunction(L, luacs_enum__index);
@@ -743,8 +731,7 @@ luacs_delenum(lua_State *L, const char *ename)
 	char		 metaname[80];
 
 	lua_pushnil(L);
-	snprintf(metaname, sizeof(metaname), "%s.%s", METANAME_LUACS_ENUM,
-	    ename);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, ename);
 	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
 	return (0);
 }
@@ -752,7 +739,7 @@ luacs_delenum(lua_State *L, const char *ename)
 struct luacenum *
 luacs_checkenum(lua_State *L, int ceidx)
 {
-	return (luaL_checkudata(L, ceidx, METANAME_LUACS_ENUM));
+	return (luaL_checkudata(L, ceidx, METANAME_LUACSENUM));
 }
 
 
@@ -789,7 +776,7 @@ luacs_enum_memberof(lua_State *L)
 	struct luacenum_value	*val, *val1;
 
 	ce = luacs_checkenum(L, 1);
-	val = luaL_checkudata(L, 2, METANAME_LUACS_ENUMVAL);
+	val = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
 	val1 = luacs_enum_get0(ce, val->value);
 	lua_pushboolean(L, val1 != NULL && val1 == val);
 
@@ -886,7 +873,7 @@ luacs_enum_declare_value(lua_State *L, const char *label, intmax_t value)
 
 	lua_pushvalue(L, -1);
 	val->ref = luacs_ref(L);	/* as for a ref from luacenum */
-	if ((ret = luaL_newmetatable(L, METANAME_LUACS_ENUMVAL)) != 0) {
+	if ((ret = luaL_newmetatable(L, METANAME_LUACSENUMVAL)) != 0) {
 		lua_pushcfunction(L, luacs_enumvalue__gc);
 		lua_setfield(L, -2, "__gc");
 		lua_pushcfunction(L, luacs_enumvalue__tostring);
@@ -907,7 +894,7 @@ luacs_enumvalue_tointeger(lua_State *L)
 {
 	struct luacenum_value	*val;
 
-	val = luaL_checkudata(L, 1, METANAME_LUACS_ENUMVAL);
+	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	lua_pushinteger(L, val->value);
 
 	return (1);
@@ -919,7 +906,7 @@ luacs_enumvalue__tostring(lua_State *L)
 	struct luacenum_value	*val;
 	char			 buf[80];
 
-	val = luaL_checkudata(L, 1, METANAME_LUACS_ENUMVAL);
+	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	/* Lua supports limitted int width for number2tstr */
 	snprintf(buf, sizeof(buf), "%jd", val->value);
 	lua_pushfstring(L, "%s(%s)", val->label, buf);
@@ -931,7 +918,7 @@ int
 luacs_enumvalue__gc(lua_State *L)
 {
 	struct luacenum_value	*val;
-	val = luaL_checkudata(L, 1, METANAME_LUACS_ENUMVAL);
+	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 
 	return (0);
 }
