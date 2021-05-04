@@ -47,8 +47,18 @@
 		fprintf(stdout, __VA_ARGS__);	\
 		fputs("\n", stdout);		\
 	} while (0/*CONSTCOND*/)
+#define LUACS_ASSERT(_L, _cond)						\
+	do {								\
+		if (!(_cond)) {						\
+			lua_pushfstring((_L), "ASSERT(%s) failed "	\
+			    "in %s() at %s:%d", #_cond, __func__,	\
+			    __FILE__, __LINE__);			\
+			lua_error((_L));				\
+		}							\
+	} while (0/*CONSTCOND*/)
 #else
-#define LUACS_DBG(...)	((void)0)
+#define LUACS_DBG(...)		((void)0)
+#define LUACS_ASSERT(_L, _cond)	((void)0)
 #endif
 
 #ifndef MINIMUM
@@ -285,9 +295,7 @@ luacs_newobject(lua_State *L, const char *tname, void *ptr)
 	int			 ret;
 	char			 metaname[80];
 
-	if (ptr == NULL) {
-		abort();
-	}
+	LUACS_ASSERT(L, ptr != NULL);
 
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
