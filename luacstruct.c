@@ -32,9 +32,10 @@
 
 #define	METANAME_LUACSTRUCT	"luacstruct"
 #define	METANAME_LUACSENUM	"luacenum"
-#define	METANAME_LUACSTYPE	"luactype."	/* type registry prefix */
+#define	METANAME_LUACSTYPE	"luactype."	/* type registry name prefix */
 #define	METANAME_LUACSTRUCTOBJ	"luacstructobj"
 #define	METANAME_LUACSENUMVAL	"luacenumval"
+
 #define	LUACS_REGISTRY_NAME	"luacstruct_registry"
 
 #if LUA_VERSION_NUM == 501

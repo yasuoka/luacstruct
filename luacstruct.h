@@ -35,7 +35,7 @@ enum luacstruct_type {
 	LUACS_TENUM,
 	LUACS_TBOOL,
 	LUACS_TSTRING,
-	LUACS_TSTRPTR,	/* string pointer read only */
+	LUACS_TSTRPTR,
 	LUACS_TBYTEARRAY,
 	LUACS_TOBJREF,
 	LUACS_TEXTREF
