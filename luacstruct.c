@@ -262,12 +262,14 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 	field->flags = flags;
 	switch (_type) {
 	case LUACS_TOBJREF:
+	case LUACS_TOBJENT:
 	case LUACS_TENUM:
 		snprintf(buf, sizeof(buf), "%s%s", METANAME_LUACSTYPE, tname);
 		lua_getfield(L, LUA_REGISTRYINDEX, buf);
 		if (lua_isnil(L, -1)) {
 			lua_pushfstring(L, "`%s %s' is not registered.",
-			    (_type == LUACS_TOBJREF)? "struct" : tname);
+			    (_type == LUACS_TENUM)? "enum" : "struct",
+			    tname);
 			lua_error(L);
 		}
 		field->regeon.typref = luacs_ref(L);
@@ -376,6 +378,7 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 	default:
 		return (luacs_pushregeon(L, obj, &field->regeon));
 	case LUACS_TOBJREF:
+	case LUACS_TOBJENT:
 		if (field->regeon.type == LUACS_TOBJENT)
 			ptr = obj->ptr + field->regeon.off;
 		else
@@ -430,6 +433,7 @@ readonly:
 		case LUACS_TSTRPTR:
 			goto readonly;
 		case LUACS_TOBJREF:
+		case LUACS_TOBJENT:
 			/* get c struct of the field */
 			luacs_getref(L, field->regeon.typref);
 			cs0 = luacs_checkstruct(L, -1);
@@ -495,6 +499,7 @@ luacs_object_copy(lua_State *L)
 			    (caddr_t)r->ptr + field->regeon.off,
 			    field->regeon.size);
 		else if (field->regeon.type == LUACS_TOBJREF ||
+		    field->regeon.type == LUACS_TOBJENT ||
 		    field->regeon.type == LUACS_TEXTREF) {
 			/* l[fieldname] = r[fieldname] */
 			lua_getfield(L, 2, field->fieldname);
@@ -711,6 +716,7 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 			    '\0';
 		break;
 	case LUACS_TOBJREF:
+	case LUACS_TOBJENT:
 	case LUACS_TEXTREF:
 		LUACS_ASSERT(L, 0);
 		break;

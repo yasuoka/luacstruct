@@ -38,6 +38,7 @@ enum luacstruct_type {
 	LUACS_TSTRPTR,
 	LUACS_TBYTEARRAY,
 	LUACS_TOBJREF,
+	LUACS_TOBJENT,
 	LUACS_TEXTREF
 };
 
@@ -149,8 +150,8 @@ __END_DECLS
 	} while (0/*CONSTCOND*/)
 #define luacs_nested_field(_L, _type, _tname, _field, _flags)	\
 	do {							\
-		luacs_declare_field((_L), LUACS_TOBJREF, #_tname,\
-		    #_field, 0,					\
+		luacs_declare_field((_L), LUACS_TOBJENT, #_tname,\
+		    #_field, sizeof(((struct _type *)0)->_field),\
 		    offsetof(struct _type, _field), _flags);	\
 	} while (0/*CONSTCOND*/)
 #define luacs_extref_field(_L, _type, _field, _flags)		\
