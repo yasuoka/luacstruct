@@ -89,10 +89,10 @@ struct luacstruct_field {
 	TAILQ_ENTRY(luacstruct_field)	 queue;
 };
 
-struct luacstruct_obj {
-	caddr_t				 obj;
+struct luacobject {
+	caddr_t				 ptr;
 	struct luacstruct		*cs;
-	int				 csref;
+	int				 typref;
 	int				 tblref;
 };
 
@@ -121,7 +121,7 @@ static int	 luacstruct_field_cmp(struct luacstruct_field *,
 		    struct luacstruct_field *);
 static int	 luacs_newobject0(lua_State *, void *);
 static int	 luacs_object__index(lua_State *);
-static int	 luacs_object__get(lua_State *, struct luacstruct_obj *,
+static int	 luacs_object__get(lua_State *, struct luacobject *,
 		    struct luacstruct_field *);
 static int	 luacs_object__newindex(lua_State *);
 static int	 luacs_object_copy(lua_State *);
@@ -314,16 +314,16 @@ luacs_newobject(lua_State *L, const char *tname, void *ptr)
 int
 luacs_newobject0(lua_State *L, void *ptr)
 {
-	struct luacstruct_obj	*obj;
+	struct luacobject	*obj;
 	struct luacstruct	*cs;
 	int			 ret;
 
 	cs = luacs_checkstruct(L, -1);
-	obj = lua_newuserdata(L, sizeof(struct luacstruct_obj));
-	obj->obj = ptr;
+	obj = lua_newuserdata(L, sizeof(struct luacobject));
+	obj->ptr = ptr;
 	obj->cs = cs;
 	lua_pushvalue(L, -2);
-	obj->csref = luacs_ref(L);
+	obj->typref = luacs_ref(L);
 	if ((ret = luaL_newmetatable(L, METANAME_LUACSTRUCTOBJ)) != 0) {
 		lua_pushcfunction(L, luacs_object__index);
 		lua_setfield(L, -2, "__index");
@@ -345,7 +345,7 @@ luacs_newobject0(lua_State *L, void *ptr)
 int
 luacs_object__index(lua_State *L)
 {
-	struct luacstruct_obj	*obj;
+	struct luacobject	*obj;
 	struct luacstruct_field	 fkey, *field;
 
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
@@ -359,7 +359,7 @@ luacs_object__index(lua_State *L)
 }
 
 int
-luacs_object__get(lua_State *L, struct luacstruct_obj *obj,
+luacs_object__get(lua_State *L, struct luacobject *obj,
     struct luacstruct_field *field)
 {
 	void	*ptr;
@@ -395,10 +395,10 @@ luacs_object__get(lua_State *L, struct luacstruct_obj *obj,
 		struct luacenum_value	*val;
 		struct luacenum		*ce;
 		switch (field->fieldsiz) {
-		case 1:	value = *(int8_t  *)(obj->obj + field->fieldoff); break;
-		case 2:	value = *(int16_t *)(obj->obj + field->fieldoff); break;
-		case 4:	value = *(int32_t *)(obj->obj + field->fieldoff); break;
-		case 8:	value = *(int64_t *)(obj->obj + field->fieldoff); break;
+		case 1:	value = *(int8_t  *)(obj->ptr + field->fieldoff); break;
+		case 2:	value = *(int16_t *)(obj->ptr + field->fieldoff); break;
+		case 4:	value = *(int32_t *)(obj->ptr + field->fieldoff); break;
+		case 8:	value = *(int64_t *)(obj->ptr + field->fieldoff); break;
 		}
 		luacs_getref(L, field->extref);
 		ce = luacs_checkenum(L, -1);
@@ -420,14 +420,14 @@ luacs_object__get(lua_State *L, struct luacstruct_obj *obj,
 		lua_pushstring(L, *(const char **)(obj->obj + field->fieldoff));
 		break;
 	case LUACS_TBYTEARRAY:
-		lua_pushlstring(L, (char *)obj->obj + field->fieldoff,
+		lua_pushlstring(L, (char *)obj->ptr + field->fieldoff,
 		    field->fieldsiz);
 		break;
 	case LUACS_TOBJREF:
 		if (field->fieldsiz == 0) /* nested */
-			ptr = obj->obj + field->fieldoff;
+			ptr = obj->ptr + field->fieldoff;
 		else
-			ptr = *(void **)(obj->obj + field->fieldoff);
+			ptr = *(void **)(obj->ptr + field->fieldoff);
 		if (ptr == NULL)
 			lua_pushnil(L);
 		else {
@@ -461,7 +461,7 @@ int
 luacs_object__newindex(lua_State *L)
 {
 	struct luacstruct	*cs0;
-	struct luacstruct_obj	*obj, *ano;
+	struct luacobject	*obj, *ano;
 	struct luacstruct_field	 fkey, *field;
 	size_t			 siz;
 
@@ -477,39 +477,39 @@ readonly:
 		}
 		switch (field->fieldtype) {
 		case LUACS_TINT8:
-			*(int8_t *)(obj->obj + field->fieldoff) =
+			*(int8_t *)(obj->ptr + field->fieldoff) =
 			    lua_tointeger(L, 3);
 			break;
 		case LUACS_TUINT8:
-			*(uint8_t *)(obj->obj + field->fieldoff) =
+			*(uint8_t *)(obj->ptr + field->fieldoff) =
 			    lua_tointeger(L, 3);
 			break;
 		case LUACS_TINT16:
-			*(int16_t *)(obj->obj + field->fieldoff) =
+			*(int16_t *)(obj->ptr + field->fieldoff) =
 			    lua_tointeger(L, 3);
 			break;
 		case LUACS_TUINT16:
-			*(uint16_t *)(obj->obj + field->fieldoff) =
+			*(uint16_t *)(obj->ptr + field->fieldoff) =
 			    lua_tointeger(L, 3);
 			break;
 		case LUACS_TINT32:
-			*(int32_t *)(obj->obj + field->fieldoff) =
+			*(int32_t *)(obj->ptr + field->fieldoff) =
 			    lua_tointeger(L, 3);
 			break;
 		case LUACS_TUINT32:
-			*(uint32_t *)(obj->obj + field->fieldoff) =
+			*(uint32_t *)(obj->ptr + field->fieldoff) =
 			    lua_tointeger(L, 3);
 			break;
 		case LUACS_TINT64:
-			*(int64_t *)(obj->obj + field->fieldoff) =
+			*(int64_t *)(obj->ptr + field->fieldoff) =
 			    lua_tointeger(L, 3);
 			break;
 		case LUACS_TUINT64:
-			*(uint16_t *)(obj->obj + field->fieldoff) =
+			*(uint16_t *)(obj->ptr + field->fieldoff) =
 			    lua_tointeger(L, 3);
 			break;
 		case LUACS_TBOOL:
-			*(bool *)(obj->obj + field->fieldoff) =
+			*(bool *)(obj->ptr + field->fieldoff) =
 			    lua_toboolean(L, 3);
 			break;
 		case LUACS_TENUM:
@@ -545,7 +545,7 @@ readonly:
 				val = lua_touserdata(L, 3);
 				value = val->value;
 			}
-			ptr = obj->obj + field->fieldoff;
+			ptr = obj->ptr + field->fieldoff;
 			switch (field->fieldsiz) {
 			case 1: *(int8_t  *)(ptr) = value; break;
 			case 2: *(int16_t *)(ptr) = value; break;
@@ -559,12 +559,12 @@ readonly:
 			luaL_checkstring(L, 3);
 			siz = lua_rawlen(L, 3);
 			luaL_argcheck(L, siz < field->fieldsiz, 3, "too long");
-			memset(obj->obj + field->fieldoff, 0,
+			memset(obj->ptr + field->fieldoff, 0,
 			    field->fieldsiz);
-			memcpy(obj->obj + field->fieldoff,
+			memcpy(obj->ptr + field->fieldoff,
 			    lua_tostring(L, 3), MINIMUM(siz, field->fieldsiz));
 			if (field->fieldtype == LUACS_TSTRING)
-				*(char *)(obj->obj + field->fieldoff +
+				*(char *)(obj->ptr + field->fieldoff +
 				    field->fieldsiz -1) = '\0';
 			break;
 		case LUACS_TSTRPTR:
@@ -589,8 +589,8 @@ readonly:
 				lua_pushvalue(L, 3);
 				lua_call(L, 2, 0);
 			} else {
-				*(void **)(obj->obj + field->fieldoff) =
-				    ano->obj;
+				*(void **)(obj->ptr + field->fieldoff) =
+				    ano->ptr;
 				/* use the same object */
 				luacs_getref(L, obj->tblref);
 				lua_pushvalue(L, 3);
@@ -620,7 +620,7 @@ readonly:
 int
 luacs_object_copy(lua_State *L)
 {
-	struct luacstruct_obj	*l, *r;
+	struct luacobject	*l, *r;
 	struct luacstruct_field	*field;
 
 	l = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
@@ -634,8 +634,8 @@ luacs_object_copy(lua_State *L)
 	}
 	TAILQ_FOREACH(field, &l->cs->sorted, queue) {
 		if (field->fieldsiz > 0)
-			memcpy((caddr_t)l->obj + field->fieldoff,
-			    (caddr_t)r->obj + field->fieldoff, field->fieldsiz);
+			memcpy((caddr_t)l->ptr + field->fieldoff,
+			    (caddr_t)r->ptr + field->fieldoff, field->fieldsiz);
 		else if (field->fieldtype == LUACS_TOBJREF ||
 		    field->fieldtype == LUACS_TEXTREF) {
 			/* l[fieldname] = r[fieldname] */
@@ -650,7 +650,7 @@ luacs_object_copy(lua_State *L)
 int
 luacs_object__next(lua_State *L)
 {
-	struct luacstruct_obj	*obj;
+	struct luacobject	*obj;
 	struct luacstruct_field	*field, fkey;
 
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
@@ -685,10 +685,10 @@ luacs_object__pairs(lua_State *L)
 int
 luacs_object__gc(lua_State *L)
 {
-	struct luacstruct_obj	*obj;
+	struct luacobject	*obj;
 
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
-	luacs_unref(L, obj->csref);
+	luacs_unref(L, obj->typref);
 	luacs_unref(L, obj->tblref);
 
 	return (0);
