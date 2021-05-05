@@ -65,6 +65,10 @@
 #define MINIMUM(_a, _b)		((_a) < (_b)? (_a) : (_b))
 #endif
 
+#ifndef	nitems
+#define	nitems(_x)		(sizeof(_x) / sizeof((_x)[0]))
+#endif
+
 struct luacstruct {
 	const char			*typename;
 	char				 metaname[80];
