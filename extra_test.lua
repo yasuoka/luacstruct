@@ -96,7 +96,7 @@ local main = function()
 	assert(m1.fuga1.pseudo == f1.pseudo)
 	m1.fuga1.pseudo = 200
 	assert(m1.fuga1.pseudo ~= f1.pseudo)
-	
+
 	-- assigning of the same type is ok
 	m1.fuga2 = f2
 	assert(m1.fuga2.id == f2.id)
@@ -114,15 +114,149 @@ local main = function()
 	m1.fuga1.pseudo = 201
 	-- the same since fuga is copy
 	assert(m1.fuga2.pseudo == f2.pseudo)
+
+	local m1,m2,int8a,int8b = test_array()
+	-- check __len
+	assert(#m1.int4 == 4)
+	assert(#m1.sub2 == 2)
+	assert(#m1.sub3 == 3)
+	-- check __index
+	assert(m1.int4[1] == 1)
+	assert(m1.int4[2] == 2)
+	assert(m1.int4[3] == 3)
+	assert(m1.int4[4] == 4)
+	assert(m1.sub2[1].x == 1)
+	assert(m1.sub2[1].y == 2)
+	assert(m1.sub2[1].z == 3)
+	assert(m1.sub2[2].x == 11)
+	assert(m1.sub2[2].y == 12)
+	assert(m1.sub2[2].z == 13)
+	assert(m1.sub3[1].x == 21)
+	assert(m1.sub3[1].y == 22)
+	assert(m1.sub3[1].z == 23)
+	assert(m1.sub3[2].x == 31)
+	assert(m1.sub3[2].y == 32)
+	assert(m1.sub3[2].z == 33)
+	assert(m1.sub3[3].x == 41)
+	assert(m1.sub3[3].y == 42)
+	assert(m1.sub3[3].z == 43)
+	-- __newindex primitive
+	m1.int4[1] = 9
+	m1.int4[2] = 8
+	m1.int4[3] = 7
+	m1.int4[4] = 6
+	assert(m1.int4[1] == 9)
+	assert(m1.int4[2] == 8)
+	assert(m1.int4[3] == 7)
+	assert(m1.int4[4] == 6)
+	-- __newindex objref / objent
+	m1.sub2[1] = m1.sub3[1]
+	assert(m1.sub2[1].x == 21)
+	assert(m1.sub2[1].y == 22)
+	assert(m1.sub2[1].z == 23)
+	-- sub2 must be a reference
+	m1.sub3[1].x = 999
+	assert(m1.sub2[1].x == 999)
+	assert(m1.sub2[1] ==  m1.sub3[1])
+	-- sub3 must be an entity
+	m1.sub3[2] = m1.sub3[3]
+	assert(m1.sub3[2].x == 41)
+	assert(m1.sub3[2].y == 42)
+	assert(m1.sub3[2].z == 43)
+	m1.sub3[2].x = 999
+	assert(m1.sub3[2].x == 999)
+	assert(m1.sub3[3].x == 41)
+
+	-- assign array
+	m2.int4 = m1.int4
+	assert(m2.int4[1] == 9)
+	assert(m2.int4[2] == 8)
+	assert(m2.int4[3] == 7)
+	assert(m2.int4[4] == 6)
+
+	m2.sub2 = m1.sub2
+	-- sub2 is refereence
+	assert(m2.sub2 ~= m1.sub2)
+	assert(m2.sub2[1] == m1.sub2[1])
+	assert(m2.sub2[2] == m1.sub2[2])
+	assert(m2.sub2[1].x == m1.sub2[1].x)
+	assert(m2.sub2[1].y == m1.sub2[1].y)
+	assert(m2.sub2[1].z == m1.sub2[1].z)
+	assert(m2.sub2[2].x == m1.sub2[2].x)
+	assert(m2.sub2[2].y == m1.sub2[2].y)
+	assert(m2.sub2[2].z == m1.sub2[2].z)
+	m1.sub2[1].x = 1234
+	assert(m2.sub2[1].x == 1234)
+
+	m2.sub3 = m1.sub3
+	-- sub3 is an entity
+	assert(m2.sub3[1] ~= m1.sub3[1])
+	assert(m2.sub3[2] ~= m1.sub3[2])
+	assert(m2.sub3[3] ~= m1.sub3[3])
+	assert(m2.sub3[1].x == m1.sub3[1].x)
+	assert(m2.sub3[1].y == m1.sub3[1].y)
+	assert(m2.sub3[1].z == m1.sub3[1].z)
+	m1.sub3[2].z = 100
+	m2.sub3[2].z = 101
+	assert(m1.sub3[2].z == 100)
+	assert(m2.sub3[2].z == 101)
+
+	m1.ext2[1] = "hello"
+	m1.ext2[2] = "world"
+	m2.ext2 = m1.ext2
+	assert(m1.ext2[1] == m2.ext2[1])
+	assert(m1.ext2[2] == m2.ext2[2])
+	assert(m2.ext2[1] == "hello")
+	assert(m2.ext2[2] == "world")
+
+	assert(#int8a == 8);
+	assert(#int8b == 8);
+	for i=1,#int8a do
+		int8b[i] = 2 * i
+	end
+	-- bare array objects
+	int8a = int8b
+	assert(int8a[1] == 2)
+	assert(int8a[8] == 16)
+	-- iteration
+	local i = 1
+	for k,v in pairs(int8a) do
+		assert(k == i)
+		assert(v == i * 2)
+		i = i + 1
+	end
+	for i,v in ipairs(int8a) do
+		assert(v == i * 2)
+		i = i + 1
+	end
+	print(m1.intxy[1][1])
+	print(m1.intxy[1][2])
 end
 if _VERSION == "Lua 5.1" then
-	_pairs = pairs
+	local _pairs = pairs
 	pairs = function(t)
 	    local mt = getmetatable(t)
 	    if mt and mt.__pairs then
 		return mt.__pairs(t)
 	    end
 	    return _pairs(t)
+	end
+end
+if _VERSION == "Lua 5.1" or _VERSION == "Lua 5.2" then
+	local _pairs = ipairs
+	local _next = function(t,i)
+		i = i or 0
+		i = i + 1
+		if i <= #t then
+			return i, t[i]
+		end
+		return nil
+	end
+	ipairs = function(t)
+		if type(t) ~= "table" then
+			return _next, t, nil
+		end
+		return _pairs(t)
 	end
 end
 main()

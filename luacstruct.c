@@ -33,6 +33,8 @@
 #define	METANAME_LUACSTRUCT	"luacstruct"
 #define	METANAME_LUACSENUM	"luacenum"
 #define	METANAME_LUACTYPE	"luactype."	/* type registry name prefix */
+#define	METANAME_LUACARRAY	"luacarray"
+#define	METANAME_LUACARRAYTYPE	"luacarraytype"
 #define	METANAME_LUACSTRUCTOBJ	"luacstructobj"
 #define	METANAME_LUACSENUMVAL	"luacenumval"
 
@@ -40,6 +42,8 @@
 
 #if LUA_VERSION_NUM == 501
 #define	lua_rawlen(_x, _i)	lua_objlen((_x), (_i))
+#define lua_absindex(_L, _i)	(((_i) > 0 || (_i) <= LUA_REGISTRYINDEX) \
+				    ? (_i) : lua_gettop(_L) + (_i) + 1)
 #endif
 
 #ifdef LUACS_DEBUG
@@ -78,6 +82,16 @@ struct luacstruct {
 	TAILQ_HEAD(,luacstruct_field)	 sorted;
 };
 
+struct luacarraytype {
+	const char			*typename;
+	char				 metaname[80];
+	enum luacstruct_type		 type;
+	size_t				 size;
+	int				 nmemb;
+	int				 typref;
+	unsigned			 flags;
+};
+
 struct luacregeon {
 	enum luacstruct_type		 type;
 	int				 off;
@@ -86,18 +100,24 @@ struct luacregeon {
 };
 
 struct luacstruct_field {
+	enum luacstruct_type		 type;
 	const char			*fieldname;
 	struct luacregeon		 regeon;
+	int				 nmemb;
 	unsigned			 flags;
 	SPLAY_ENTRY(luacstruct_field)	 tree;
 	TAILQ_ENTRY(luacstruct_field)	 queue;
 };
 
 struct luacobject {
-	caddr_t				 ptr;
+	enum luacstruct_type		 type;
 	struct luacstruct		*cs;
+	caddr_t				 ptr;
+	size_t				 size;
+	int				 nmemb;
 	int				 typref;
-	int				 tblref;
+	int				 tblref;	/* cache of members */
+	unsigned			 flags;
 };
 
 struct luacenum {
@@ -123,6 +143,17 @@ static struct luacstruct
 static int	 luacs_struct__gc(lua_State *);
 static int	 luacstruct_field_cmp(struct luacstruct_field *,
 		    struct luacstruct_field *);
+static int	 luacs_pushctype(lua_State *, enum luacstruct_type,
+		    const char *);
+static int	 luacs_newarray0(lua_State *, enum luacstruct_type, int, size_t,
+		    int, unsigned, void *);
+static int	 luacs_array__len(lua_State *);
+static int	 luacs_array__index(lua_State *);
+static int	 luacs_array__newindex(lua_State *);
+static int	 luacs_array_copy(lua_State *);
+static int	 luacs_array__next(lua_State *);
+static int	 luacs_array__pairs(lua_State *);
+static int	 luacs_array__gc(lua_State *);
 static int	 luacs_newobject0(lua_State *, void *);
 static int	 luacs_object__index(lua_State *);
 static int	 luacs_object__get(lua_State *, struct luacobject *,
@@ -135,7 +166,7 @@ static int	 luacs_object__gc(lua_State *);
 static int	 luacs_pushregeon(lua_State *, struct luacobject *,
 		    struct luacregeon *);
 static void	 luacs_pullregeon(lua_State *, struct luacobject *,
-		    struct luacregeon *);
+		    struct luacregeon *, int);
 struct luacenum	*luacs_checkenum(lua_State*, int);
 struct luacenum_value
 		*luacs_enum_get0(struct luacenum *, intmax_t);
@@ -238,7 +269,8 @@ luacs_struct__gc(lua_State *L)
 
 int
 luacs_declare_field(lua_State *L, enum luacstruct_type _type,
-    const char *tname, const char *name, size_t siz, int off, unsigned flags)
+    const char *tname, const char *name, size_t siz, int off, int nmemb,
+    unsigned flags)
 {
 	struct luacstruct_field	*field, *field0;
 	struct luacstruct	*cs;
@@ -259,19 +291,14 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 	field->regeon.type = _type;
 	field->regeon.off = off;
 	field->regeon.size = siz;
+	field->nmemb = nmemb;
 	field->flags = flags;
 	switch (_type) {
 	case LUACS_TOBJREF:
 	case LUACS_TOBJENT:
 	case LUACS_TENUM:
-		snprintf(buf, sizeof(buf), "%s%s", METANAME_LUACTYPE, tname);
-		lua_getfield(L, LUA_REGISTRYINDEX, buf);
-		if (lua_isnil(L, -1)) {
-			lua_pushfstring(L, "`%s %s' is not registered.",
-			    (_type == LUACS_TENUM)? "enum" : "struct",
-			    tname);
-			lua_error(L);
-		}
+	case LUACS_TARRAY:
+		luacs_pushctype(L, _type, tname);
 		field->regeon.typref = luacs_ref(L);
 		break;
 	case LUACS_TINT64:
@@ -284,6 +311,8 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 	default:
 		break;
 	}
+	field->type = (field->nmemb > 0)? LUACS_TARRAY : _type;
+
 	SPLAY_INSERT(luacstruct_fields, &cs->fields, field);
 	TAILQ_FOREACH(field0, &cs->sorted, queue) {
 		if (field->regeon.off < field0->regeon.off)
@@ -301,6 +330,510 @@ int
 luacstruct_field_cmp(struct luacstruct_field *a, struct luacstruct_field *b)
 {
 	return (strcmp(a->fieldname, b->fieldname));
+}
+
+int
+luacs_pushctype(lua_State *L, enum luacstruct_type _type, const char *tname)
+{
+	char	metaname[80];
+
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
+	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
+	if (lua_isnil(L, -1)) {
+		if (_type == LUACS_TARRAY)
+			lua_pushfstring(L, "array `%s' is not registered",
+			    tname);
+		else
+			lua_pushfstring(L, "`%s %s' is not registered",
+			    _type == LUACS_TENUM? "enum" : "struct", tname);
+		lua_error(L);
+	}
+	if (_type == LUACS_TARRAY)
+		luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
+	else if (_type == LUACS_TENUM)
+		luacs_checkenum(L, -1);
+	else
+		luacs_checkstruct(L, -1);
+
+	return (1);
+}
+
+/* array */
+int
+luacs_arraytype__gc(lua_State *L)
+{
+	struct luacarraytype	*cat;
+
+	cat = luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
+	if (1)
+		LUACS_DBG("%s(%p)", __func__, cat);
+
+	return (0);
+}
+
+int
+luacs_newarraytype(lua_State *L, const char *tname, enum luacstruct_type _type,
+    const char *membtname, size_t size, int nmemb, unsigned flags)
+{
+	int			 ret;
+	struct luacarraytype	*cat;
+	char			 metaname[80];
+
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
+	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
+	if (!lua_isnil(L, -1)) {
+		cat = luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
+		return (1);
+	}
+	lua_pop(L, 1);
+
+	cat = lua_newuserdata(L, sizeof(struct luacarraytype));
+
+	cat->type = _type;
+	cat->size = size;
+	cat->nmemb = nmemb;
+	cat->flags = flags;
+
+	switch (_type) {
+	case LUACS_TOBJREF:
+	case LUACS_TOBJENT:
+	case LUACS_TARRAY:
+		if (membtname == NULL) {
+			lua_pushfstring(L, "`membtname' argument must be "
+			    "specified when creating an array of %s",
+			    _type == LUACS_TENUM?  "LUACS_TENUM" :
+			    _type == LUACS_TOBJREF ?  "LUACS_TOBJREF" :
+			    "LUACS_TOBJENT");
+			lua_error(L);
+		}
+		luacs_pushctype(L, _type, membtname);
+		cat->typref = luacs_ref(L);
+		break;
+	default:
+		break;
+	}
+
+	lua_pushvalue(L, -1);
+	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
+	memcpy(cat->metaname, metaname, MINIMUM(sizeof(metaname),
+	    sizeof(cat->metaname)));
+
+	cat->typename = index(cat->metaname, '.') + 1;
+	if ((ret = luaL_newmetatable(L, METANAME_LUACARRAYTYPE)) != 0) {
+		lua_pushcfunction(L, luacs_arraytype__gc);
+		lua_setfield(L, -2, "__gc");
+	}
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
+	lua_setmetatable(L, -2);
+
+	return (1);
+}
+
+int
+luacs_newarray(lua_State *L, enum luacstruct_type _type, const char *membtname,
+    size_t size, int nmemb, unsigned flags, void *ptr)
+{
+	int	typref = 0;
+
+	switch (_type) {
+	case LUACS_TENUM:
+	case LUACS_TOBJREF:
+	case LUACS_TOBJENT:
+	case LUACS_TARRAY:
+		if (membtname == NULL) {
+			lua_pushfstring(L, "`membtname' argument must be "
+			    "specified when creating an array of %s",
+			    _type == LUACS_TENUM?  "LUACS_TENUM" :
+			    _type == LUACS_TOBJREF ?  "LUACS_TOBJREF" :
+			    "LUACS_TOBJENT");
+			lua_error(L);
+		}
+		luacs_pushctype(L, _type, membtname);
+		typref = luacs_ref(L);
+		break;
+	default:
+		break;
+	}
+	return (luacs_newarray0(L, _type, typref, size, nmemb, flags, ptr));
+}
+
+int
+luacs_newarray0(lua_State *L, enum luacstruct_type _type, int typidx,
+    size_t size, int nmemb, unsigned flags, void *ptr)
+{
+	struct luacobject	*obj;
+	int			 ret, absidx;
+
+	absidx = lua_absindex(L, typidx);
+
+	obj = lua_newuserdata(L, sizeof(struct luacobject));
+	obj->type =_type;
+	obj->ptr = ptr;
+	obj->size = size;
+	obj->nmemb = nmemb;
+	obj->flags = flags;
+
+	if (typidx != 0) {
+		lua_pushvalue(L, absidx);
+		obj->typref = luacs_ref(L);
+	}
+
+	if (_type == LUACS_TOBJREF || _type == LUACS_TOBJENT ||
+	    _type == LUACS_TEXTREF || _type == LUACS_TARRAY) {
+		lua_newtable(L);
+		obj->tblref = luacs_ref(L);
+	}
+	if ((ret = luaL_newmetatable(L, METANAME_LUACARRAY)) != 0) {
+		lua_pushcfunction(L, luacs_array__len);
+		lua_setfield(L, -2, "__len");
+		lua_pushcfunction(L, luacs_array__index);
+		lua_setfield(L, -2, "__index");
+		lua_pushcfunction(L, luacs_array__newindex);
+		lua_setfield(L, -2, "__newindex");
+		lua_pushcfunction(L, luacs_array__next);
+		lua_pushcclosure(L, luacs_array__pairs, 1);
+		lua_setfield(L, -2, "__pairs");
+		lua_pushcfunction(L, luacs_array__gc);
+		lua_setfield(L, -2, "__gc");
+	}
+	lua_setmetatable(L, -2);
+
+	return (1);
+}
+
+int
+luacs_array__len(lua_State *L)
+{
+	struct luacobject	*obj;
+
+	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	lua_pushinteger(L, obj->nmemb);
+
+	return (1);
+}
+
+int
+luacs_array__index(lua_State *L)
+{
+	struct luacobject	*obj;
+	struct luacarraytype	*cat;
+	int			 idx;
+	struct luacregeon	 regeon;
+	void			*ptr;
+
+	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	idx = luaL_checkinteger(L, 2);
+	if (idx < 1 || obj->nmemb < idx) {
+		lua_pushnil(L);
+		return (1);
+	}
+	memset(&regeon, 0, sizeof(regeon));
+
+	regeon.type = obj->type;
+	regeon.off = (idx - 1) * obj->size;
+	regeon.size = obj->size;
+	regeon.typref = obj->typref;
+
+	switch (obj->type)  {
+	default:
+		return (luacs_pushregeon(L, obj, &regeon));
+		break;
+	case LUACS_TOBJREF:
+	case LUACS_TOBJENT:
+		if (obj->type == LUACS_TOBJENT)
+			ptr = obj->ptr + regeon.off;
+		else
+			ptr = *(void **)(obj->ptr + regeon.off);
+		if (ptr == NULL)
+			lua_pushnil(L);
+		else {
+			luacs_getref(L, obj->tblref);
+			lua_rawgeti(L, -1, idx);
+			if (lua_isnil(L, -1)) {
+				lua_pop(L, 1);
+				luacs_getref(L, obj->typref);
+				luacs_newobject0(L, ptr);
+				lua_pushvalue(L, -1);
+				lua_rawseti(L, -4, idx);
+				lua_remove(L, -2);
+			}
+			lua_remove(L, -2);
+		}
+		break;
+	case LUACS_TEXTREF:
+		luacs_getref(L, obj->tblref);
+		lua_rawgeti(L, -1, idx);
+		lua_remove(L, -2);
+		break;
+	case LUACS_TARRAY:
+		ptr = obj->ptr + regeon.off;
+		if (ptr == NULL)
+			lua_pushnil(L);
+		else {
+			luacs_getref(L, obj->tblref);
+			lua_rawgeti(L, -1, idx);
+			if (lua_isnil(L, -1)) {
+				lua_pop(L, 1);
+				luacs_getref(L, obj->typref);
+				cat = luaL_checkudata(L, -1,
+				    METANAME_LUACARRAYTYPE);
+				lua_pop(L, 1);
+				if (cat->typref != 0)
+					luacs_getref(L, cat->typref);
+				luacs_newarray0(L, cat->type, cat->typref,
+				    (cat->typref != 0)? -1 : 0, cat->nmemb,
+				    cat->flags, obj->ptr + regeon.off);
+				if (cat->typref != 0)
+					lua_remove(L, -2);
+				lua_pushvalue(L, -1);
+				lua_rawseti(L, -3, idx);
+			}
+			lua_remove(L, -2);
+		}
+		break;
+	}
+
+	return (1);
+}
+
+int
+luacs_array__newindex(lua_State *L)
+{
+	struct luacobject	*obj, *ano;
+	int			 idx;
+	struct luacregeon	 regeon;
+	struct luacstruct	*cs0;
+
+	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	idx = luaL_checkinteger(L, 2);
+	if (idx < 1 || obj->nmemb < idx) { /* out of the range */
+		lua_pushfstring(L, "array index %d out of the range 1:%d",
+		    idx, obj->nmemb);
+		lua_error(L);
+	}
+	regeon.type = obj->type;
+	regeon.off = (idx - 1) * obj->size;
+	regeon.size = obj->size;
+	regeon.typref = obj->typref;
+
+	if ((obj->flags & LUACS_FREADONLY) != 0) {
+readonly:
+		lua_pushliteral(L, "array is readonly");
+		lua_error(L);
+	}
+	switch (regeon.type) {
+	default:
+		luacs_pullregeon(L, obj, &regeon, 3);
+		break;
+	case LUACS_TSTRPTR:
+		goto readonly;
+	case LUACS_TOBJREF:
+	case LUACS_TOBJENT:
+		/* get c struct of the field */
+		luacs_getref(L, regeon.typref);
+		cs0 = luacs_checkstruct(L, -1);
+		lua_pop(L, 1);
+		/* given instance of struct */
+		ano = luaL_checkudata(L, 3, METANAME_LUACSTRUCTOBJ);
+		if (cs0 != ano->cs) {
+			lua_pushfstring(L,
+			    "must be an instance of `struct %s'",
+			    cs0->typename);
+			lua_error(L);
+		}
+		if (regeon.type == LUACS_TOBJENT) {
+			lua_pushcfunction(L, luacs_object_copy);
+
+			/* ca't assume the object is cached */
+			lua_pushcfunction(L, luacs_array__index);
+			lua_pushvalue(L, 1);
+			lua_pushinteger(L, 2);
+			lua_call(L, 2, 1);
+
+			lua_pushvalue(L, 3);
+			lua_call(L, 2, 0);
+		} else {
+			*(void **)(obj->ptr + regeon.off) = ano->ptr;
+			/* use the same object */
+			luacs_getref(L, obj->tblref);
+			lua_pushvalue(L, 3);
+			lua_rawseti(L, -2, idx);
+			lua_pop(L, 1);
+		}
+		break;
+	case LUACS_TEXTREF:
+		luacs_getref(L, obj->tblref);
+		lua_pushvalue(L, 3);
+		lua_rawseti(L, -2, idx);
+		lua_pop(L, 1);
+		break;
+	case LUACS_TARRAY:
+		lua_pushcfunction(L, luacs_array_copy);
+
+		lua_pushcfunction(L, luacs_array__index);
+		lua_pushvalue(L, 1);
+		lua_pushinteger(L, 2);
+		lua_call(L, 2, 1);
+
+		lua_pushvalue(L, 3);
+		lua_call(L, 2, 0);
+		break;
+	}
+
+	return (0);
+}
+
+int
+luacs_array_copy(lua_State *L)
+{
+	struct luacobject	*l, *r;
+	struct luacregeon	 regeon;
+	int			 idx;
+
+	l = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	r = luaL_checkudata(L, 2, METANAME_LUACARRAY);
+
+	if (l->type != r->type) {
+		lua_pushliteral(L,
+		    "can't copy between arrays of a different type");
+		lua_error(L);
+	}
+	if (l->nmemb != r->nmemb) {
+		lua_pushliteral(L,
+		    "can't copy between arrays which size are different");
+		lua_error(L);
+	}
+	switch (l->type) {
+	default:
+		for (idx = 1; idx <= l->nmemb; idx++) {
+			regeon.type = l->type;
+			regeon.off = (idx - 1) * l->size;
+			regeon.size = l->size;
+			regeon.typref = l->typref;
+
+			lua_pushcfunction(L, luacs_array__index);
+			lua_pushvalue(L, 2);
+			lua_pushinteger(L, idx);
+			lua_call(L, 2, 1);
+
+			luacs_pullregeon(L, l, &regeon, -1);
+			lua_pop(L, 1);
+		}
+		break;
+	case LUACS_TOBJREF:
+		luacs_getref(L, l->tblref);
+		for (idx = 1; idx <= l->nmemb; idx++) {
+			/* use the same pointer */
+			*(void **)(l->ptr + (idx - 1) * l->size) =
+			    *(void **)(r->ptr + (idx - 1) * r->size);
+
+			lua_pushcfunction(L, luacs_array__index);
+			lua_pushvalue(L, 2);
+			lua_pushinteger(L, idx);
+			lua_call(L, 2, 1);
+
+			lua_rawseti(L, -2, idx);
+		}
+		lua_pop(L, 1);
+		break;
+	case LUACS_TOBJENT:
+		for (idx = 1; idx <= l->nmemb; idx++) {
+			lua_pushcfunction(L, luacs_object_copy);
+
+			lua_pushcfunction(L, luacs_array__index);
+			lua_pushvalue(L, 1);
+			lua_pushinteger(L, idx);
+			lua_call(L, 2, 1);
+
+			lua_pushcfunction(L, luacs_array__index);
+			lua_pushvalue(L, 2);
+			lua_pushinteger(L, idx);
+			lua_call(L, 2, 1);
+
+			lua_call(L, 2, 0);
+		}
+		break;
+	case LUACS_TEXTREF:
+		luacs_getref(L, l->tblref);
+		for (idx = 1; idx <= l->nmemb; idx++) {
+			lua_pushcfunction(L, luacs_array__index);
+			lua_pushvalue(L, 2);
+			lua_pushinteger(L, idx);
+			lua_call(L, 2, 1);
+
+			lua_rawseti(L, -2, idx);
+		}
+		lua_pop(L, 1);
+		break;
+	case LUACS_TARRAY:
+		for (idx = 1; idx <= l->nmemb; idx++) {
+			lua_pushcfunction(L, luacs_array_copy);
+
+			lua_pushcfunction(L, luacs_array__index);
+			lua_pushvalue(L, 1);
+			lua_pushinteger(L, idx);
+			lua_call(L, 2, 1);
+
+			lua_pushcfunction(L, luacs_array__index);
+			lua_pushvalue(L, 2);
+			lua_pushinteger(L, 2);
+			lua_call(L, 2, 1);
+
+			lua_call(L, 2, 0);
+		}
+		break;
+	}
+
+	return (0);
+}
+
+int
+luacs_array__next(lua_State *L)
+{
+	struct luacobject	*obj;
+	int			 idx = 0;
+
+	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	lua_settop(L, 2);
+	if (!lua_isnil(L, 2))
+		idx = luaL_checkinteger(L, 2);
+
+	idx++;
+	if (idx < 1 || obj->nmemb < idx) {
+		lua_pushnil(L);
+		return (1);
+	}
+	lua_pushinteger(L, idx);
+	lua_pushcfunction(L, luacs_array__index);
+	lua_pushvalue(L, 1);
+	lua_pushinteger(L, idx);
+	lua_call(L, 2, 1);
+	return (2);
+}
+
+int
+luacs_array__pairs(lua_State *L)
+{
+	luaL_checkudata(L, 1, METANAME_LUACARRAY);
+
+	lua_pushvalue(L, lua_upvalueindex(1));
+	lua_pushvalue(L, 1);
+	lua_pushnil(L);
+
+	return (3);
+}
+
+int
+luacs_array__gc(lua_State *L)
+{
+	struct luacobject	*obj;
+
+	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	if (obj->typref != 0)
+		luacs_unref(L, obj->typref);
+
+	return (0);
 }
 
 /* object */
@@ -374,12 +907,12 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 {
 	void	*ptr;
 
-	switch (field->regeon.type) {
+	switch (field->type) {
 	default:
 		return (luacs_pushregeon(L, obj, &field->regeon));
 	case LUACS_TOBJREF:
 	case LUACS_TOBJENT:
-		if (field->regeon.type == LUACS_TOBJENT)
+		if (field->type == LUACS_TOBJENT)
 			ptr = obj->ptr + field->regeon.off;
 		else
 			ptr = *(void **)(obj->ptr + field->regeon.off);
@@ -404,6 +937,25 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 		lua_getfield(L, -1, field->fieldname);
 		lua_remove(L, -2);
 		break;
+	case LUACS_TARRAY:
+		/* use the cache if any */
+		luacs_getref(L, obj->tblref);
+		lua_getfield(L, -1, field->fieldname);
+		if (lua_isnil(L, -1)) {
+			lua_pop(L, 1);
+			if (field->regeon.typref != 0)
+				luacs_getref(L, field->regeon.typref);
+			luacs_newarray0(L, field->regeon.type,
+			    (field->regeon.typref != 0)? -1 : 0,
+			    field->regeon.size, field->nmemb, field->flags,
+			    obj->ptr + field->regeon.off);
+			if (field->regeon.typref != 0)
+				lua_remove(L, -2);
+			lua_pushvalue(L, -1);
+			lua_setfield(L, -3, field->fieldname);
+		}
+		lua_remove(L, -2);
+		break;
 	}
 
 	return (1);
@@ -426,9 +978,9 @@ readonly:
 			    field->fieldname);
 			lua_error(L);
 		}
-		switch (field->regeon.type) {
+		switch (field->type) {
 		default:
-			luacs_pullregeon(L, obj, &field->regeon);
+			luacs_pullregeon(L, obj, &field->regeon, 3);
 			break;
 		case LUACS_TSTRPTR:
 			goto readonly;
@@ -468,6 +1020,12 @@ readonly:
 			lua_setfield(L, -2, field->fieldname);
 			lua_pop(L, 1);
 			break;
+		case LUACS_TARRAY:
+			lua_pushcfunction(L, luacs_array_copy);
+			lua_getfield(L, 1, field->fieldname);
+			lua_pushvalue(L, 3);
+			lua_call(L, 2, 0);
+			break;
 		}
 	} else {
 		lua_pushfstring(L, "`struct %s' doesn't have field `%s'",
@@ -493,6 +1051,7 @@ luacs_object_copy(lua_State *L)
 		    r->cs->typename);
 		lua_error(L);
 	}
+
 	TAILQ_FOREACH(field, &l->cs->sorted, queue) {
 		if (field->regeon.size > 0)
 			memcpy((caddr_t)l->ptr + field->regeon.off,
@@ -631,37 +1190,45 @@ luacs_pushregeon(lua_State *L, struct luacobject *obj,
 
 void
 luacs_pullregeon(lua_State *L, struct luacobject *obj,
-    struct luacregeon *regeon)
+    struct luacregeon *regeon, int idx)
 {
-	size_t siz;
+	size_t	 siz;
+	int	 absidx;
+
+	absidx = lua_absindex(L, idx);
 
 	switch (regeon->type) {
 	case LUACS_TINT8:
-		*(int8_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		*(int8_t *)(obj->ptr + regeon->off) = lua_tointeger(L, absidx);
 		break;
 	case LUACS_TUINT8:
-		*(uint8_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		*(uint8_t *)(obj->ptr + regeon->off) = lua_tointeger(L, absidx);
 		break;
 	case LUACS_TINT16:
-		*(int16_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		*(int16_t *)(obj->ptr + regeon->off) = lua_tointeger(L, absidx);
 		break;
 	case LUACS_TUINT16:
-		*(uint16_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		*(uint16_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
+		    absidx);
 		break;
 	case LUACS_TINT32:
-		*(int32_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		*(int32_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
+		    absidx);
 		break;
 	case LUACS_TUINT32:
-		*(uint32_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		*(uint32_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
+		    absidx);
 		break;
 	case LUACS_TINT64:
-		*(int64_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		*(int64_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
+		    absidx);
 		break;
 	case LUACS_TUINT64:
-		*(uint16_t *)(obj->ptr + regeon->off) = lua_tointeger(L, 3);
+		*(uint16_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
+		    absidx);
 		break;
 	case LUACS_TBOOL:
-		*(bool *)(obj->ptr + regeon->off) = lua_toboolean(L, 3);
+		*(bool *)(obj->ptr + regeon->off) = lua_toboolean(L, absidx);
 		break;
 	case LUACS_TENUM:
 	    {
@@ -672,18 +1239,18 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 
 		luacs_getref(L, regeon->typref);
 		ce = luacs_checkenum(L, -1);
-		if (lua_type(L, 3) == LUA_TNUMBER) {
-			value = lua_tointeger(L, 3);
+		if (lua_type(L, absidx) == LUA_TNUMBER) {
+			value = lua_tointeger(L, absidx);
 			if (luacs_enum_get0(ce, value) == NULL) {
 				lua_pushfstring(L,
 				    "must be a valid integer for `enum %s'",
 				    ce->enumname);
 				lua_error(L);
 			}
-		} else if (lua_type(L, 3) == LUA_TUSERDATA) {
+		} else if (lua_type(L, absidx) == LUA_TUSERDATA) {
 			lua_pushcfunction(L, luacs_enum_memberof);
 			lua_pushvalue(L, -2);
-			lua_pushvalue(L, 3);
+			lua_pushvalue(L, absidx);
 			lua_call(L, 2, 1);
 			if (!lua_toboolean(L, -1)) {
 				lua_pushfstring(L,
@@ -691,7 +1258,7 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 				    ce->enumname);
 				lua_error(L);
 			}
-			val = lua_touserdata(L, 3);
+			val = lua_touserdata(L, absidx);
 			value = val->value;
 		}
 		ptr = obj->ptr + regeon->off;
@@ -705,11 +1272,11 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 		break;
 	case LUACS_TSTRING:
 	case LUACS_TBYTEARRAY:
-		luaL_checkstring(L, 3);
-		siz = lua_rawlen(L, 3);
-		luaL_argcheck(L, siz < regeon->size, 3, "too long");
+		luaL_checkstring(L, absidx);
+		siz = lua_rawlen(L, absidx);
+		luaL_argcheck(L, siz < regeon->size, absidx, "too long");
 		memset(obj->ptr + regeon->off, 0, regeon->size);
-		memcpy(obj->ptr + regeon->off, lua_tostring(L, 3),
+		memcpy(obj->ptr + regeon->off, lua_tostring(L, absidx),
 		    MINIMUM(siz, regeon->size));
 		if (regeon->type == LUACS_TSTRING)
 			*(char *)(obj->ptr + regeon->off + regeon->size -1) =

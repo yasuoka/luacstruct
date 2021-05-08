@@ -7,7 +7,7 @@ static int l_test_nest(lua_State *);
 static int l_test_ext(lua_State *);
 static int l_test_enum(lua_State *);
 static int l_test_copy(lua_State *);
-static int l_test_fini(lua_State *);
+static int l_test_array(lua_State *);
 
 int
 luaopen_extra(lua_State *L)
@@ -16,8 +16,8 @@ luaopen_extra(lua_State *L)
 	lua_register(L, "test_nest", l_test_nest);
 	lua_register(L, "test_ext", l_test_ext);
 	lua_register(L, "test_enum", l_test_enum);
-	lua_register(L, "test_fini", l_test_fini);
 	lua_register(L, "test_copy", l_test_copy);
+	lua_register(L, "test_array", l_test_array);
 
 	return (0);
 }
@@ -215,8 +215,70 @@ l_test_copy(lua_State *L)
 }
 
 int
-l_test_fini(lua_State *L)
+l_test_array(lua_State *L)
 {
-	luacs_delenum(L, "COLOR");
-	return (0);
+	struct array_sub {
+		int	x;
+		int	y;
+		int	z;
+	};
+	struct array_main {
+		int			 int4[4];
+		struct array_sub	*sub2[2];
+		struct array_sub	 sub3[3];
+		void			*ext2[2];
+		int			 intxy[3][3];
+	} *m1, *m2;
+
+	luacs_newstruct(L, array_sub);
+	luacs_int_field(L, array_sub, x, 0);
+	luacs_int_field(L, array_sub, y, 0);
+	luacs_int_field(L, array_sub, z, 0);
+
+	luacs_newarraytype(L, "int3", LUACS_TINT32, NULL, sizeof(int32_t), 3,
+	    0);
+	luacs_newstruct(L, array_main);
+	luacs_int_array_field(L, array_main, int4, 0);
+	luacs_objref_array_field(L, array_main, array_sub, sub2, 0);
+	luacs_nested_array_field(L, array_main, array_sub, sub3, 0);
+	luacs_extref_array_field(L, array_main, ext2, 0);
+	luacs_array_array_field(L, array_main, int3, intxy, 0);
+	lua_remove(L, -2);
+
+	m1 = calloc(1, sizeof(struct array_main));
+	m1->int4[0] = 1;
+	m1->int4[1] = 2;
+	m1->int4[2] = 3;
+	m1->int4[3] = 4;
+	m1->sub2[0] = calloc(1, sizeof(struct array_sub));
+	m1->sub2[1] = calloc(1, sizeof(struct array_sub));
+	m1->sub2[0]->x = 1;
+	m1->sub2[0]->y = 2;
+	m1->sub2[0]->z = 3;
+	m1->sub2[1]->x = 11;
+	m1->sub2[1]->y = 12;
+	m1->sub2[1]->z = 13;
+	m1->sub3[0].x = 21;
+	m1->sub3[0].y = 22;
+	m1->sub3[0].z = 23;
+	m1->sub3[1].x = 31;
+	m1->sub3[1].y = 32;
+	m1->sub3[1].z = 33;
+	m1->sub3[2].x = 41;
+	m1->sub3[2].y = 42;
+	m1->sub3[2].z = 43;
+
+	luacs_newobject(L, "array_main", m1);
+
+	m2 = calloc(1, sizeof(struct array_main));
+
+	luacs_newobject(L, "array_main", m2);
+
+	luacs_newarray(L, LUACS_TINT32, NULL, sizeof(int32_t), 8, 0,
+	    calloc(8, sizeof(int32_t)));
+	luacs_newarray(L, LUACS_TINT32, NULL, sizeof(int32_t), 8, 0,
+	    calloc(8, sizeof(int32_t)));
+
+
+	return (4);
 }
