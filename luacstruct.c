@@ -32,7 +32,7 @@
 
 #define	METANAME_LUACSTRUCT	"luacstruct"
 #define	METANAME_LUACSENUM	"luacenum"
-#define	METANAME_LUACSTYPE	"luactype."	/* type registry name prefix */
+#define	METANAME_LUACTYPE	"luactype."	/* type registry name prefix */
 #define	METANAME_LUACSTRUCTOBJ	"luacstructobj"
 #define	METANAME_LUACSENUMVAL	"luacenumval"
 
@@ -169,7 +169,7 @@ luacs_newstruct0(lua_State *L, const char *tname)
 	struct luacstruct	*cs;
 	char			 metaname[80];
 
-	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, tname);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
 	if (!lua_isnil(L, -1)) {
 		cs = luacs_checkstruct(L, -1);
@@ -202,7 +202,7 @@ luacs_delstruct(lua_State *L, const char *tname)
 {
 	char			 metaname[80];
 
-	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, tname);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_pushnil(L);
 	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
 
@@ -264,7 +264,7 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 	case LUACS_TOBJREF:
 	case LUACS_TOBJENT:
 	case LUACS_TENUM:
-		snprintf(buf, sizeof(buf), "%s%s", METANAME_LUACSTYPE, tname);
+		snprintf(buf, sizeof(buf), "%s%s", METANAME_LUACTYPE, tname);
 		lua_getfield(L, LUA_REGISTRYINDEX, buf);
 		if (lua_isnil(L, -1)) {
 			lua_pushfstring(L, "`%s %s' is not registered.",
@@ -312,7 +312,7 @@ luacs_newobject(lua_State *L, const char *tname, void *ptr)
 
 	LUACS_ASSERT(L, ptr != NULL);
 
-	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, tname);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
 
 	ret = luacs_newobject0(L, ptr);
@@ -734,7 +734,7 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 	struct luacenum	*ce;
 	char		 metaname[80];
 
-	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, ename);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, ename);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
 	if (!lua_isnil(L, -1)) {
 		ce = luacs_checkenum(L, -1);
@@ -776,7 +776,7 @@ luacs_delenum(lua_State *L, const char *ename)
 	char		 metaname[80];
 
 	lua_pushnil(L);
-	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACSTYPE, ename);
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, ename);
 	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
 	return (0);
 }
