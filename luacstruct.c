@@ -30,6 +30,7 @@
 
 #include "luacstruct.h"
 
+#define	METANAMELEN		80
 #define	METANAME_LUACSTRUCT	"luacstruct"
 #define	METANAME_LUACSENUM	"luacenum"
 #define	METANAME_LUACTYPE	"luactype."	/* type registry name prefix */
@@ -76,7 +77,7 @@
 
 struct luacstruct {
 	const char			*typename;
-	char				 metaname[80];
+	char				 metaname[METANAMELEN];
 	SPLAY_HEAD(luacstruct_fields, luacstruct_field)
 					 fields;
 	TAILQ_HEAD(,luacstruct_field)	 sorted;
@@ -84,7 +85,7 @@ struct luacstruct {
 
 struct luacarraytype {
 	const char			*typename;
-	char				 metaname[80];
+	char				 metaname[METANAMELEN];
 	enum luacstruct_type		 type;
 	size_t				 size;
 	int				 nmemb;
@@ -122,7 +123,7 @@ struct luacobject {
 
 struct luacenum {
 	const char			*enumname;
-	char				 metaname[80];
+	char				 metaname[METANAMELEN];
 	size_t				 valwidth;
 	SPLAY_HEAD(luacenum_labels, luacenum_value)
 					 labels;
@@ -198,7 +199,7 @@ luacs_newstruct0(lua_State *L, const char *tname)
 {
 	int			 ret;
 	struct luacstruct	*cs;
-	char			 metaname[80];
+	char			 metaname[METANAMELEN];
 
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
@@ -231,7 +232,7 @@ luacs_newstruct0(lua_State *L, const char *tname)
 int
 luacs_delstruct(lua_State *L, const char *tname)
 {
-	char			 metaname[80];
+	char			 metaname[METANAMELEN];
 
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_pushnil(L);
@@ -274,7 +275,7 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 {
 	struct luacstruct_field	*field, *field0;
 	struct luacstruct	*cs;
-	char			 buf[80];
+	char			 buf[BUFSIZ];
 
 	cs = luacs_checkstruct(L, -1);
 	if ((field = calloc(1, sizeof(struct luacstruct_field))) == NULL) {
@@ -335,7 +336,7 @@ luacstruct_field_cmp(struct luacstruct_field *a, struct luacstruct_field *b)
 int
 luacs_pushctype(lua_State *L, enum luacstruct_type _type, const char *tname)
 {
-	char	metaname[80];
+	char	metaname[METANAMELEN];
 
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
@@ -377,7 +378,7 @@ luacs_newarraytype(lua_State *L, const char *tname, enum luacstruct_type _type,
 {
 	int			 ret;
 	struct luacarraytype	*cat;
-	char			 metaname[80];
+	char			 metaname[METANAMELEN];
 
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
@@ -841,7 +842,7 @@ int
 luacs_newobject(lua_State *L, const char *tname, void *ptr)
 {
 	int			 ret;
-	char			 metaname[80];
+	char			 metaname[METANAMELEN];
 
 	LUACS_ASSERT(L, ptr != NULL);
 
@@ -1299,7 +1300,7 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 {
 	int		 ret;
 	struct luacenum	*ce;
-	char		 metaname[80];
+	char		 metaname[METANAMELEN];
 
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, ename);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
@@ -1340,7 +1341,7 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 int
 luacs_delenum(lua_State *L, const char *ename)
 {
-	char		 metaname[80];
+	char		 metaname[METANAMELEN];
 
 	lua_pushnil(L);
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, ename);
@@ -1516,7 +1517,7 @@ int
 luacs_enumvalue__tostring(lua_State *L)
 {
 	struct luacenum_value	*val;
-	char			 buf[80];
+	char			 buf[128];
 
 	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	/* Lua supports limitted int width for number2tstr */
