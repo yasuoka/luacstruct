@@ -191,7 +191,7 @@ luacs_enum_field(L, yourapp_type2, yourapp_color, color, 0);
 lua_pop(L, 1);		              // pop the struct
 ```
 
-Also the `luacenum` object can be expose as a set of contants:
+Also the `luacenum` object can be expose as a set of constants:
 ```c
 luacs_newenum(L, yourapp_color);
 lua_setglobal(L, "COLOR");
