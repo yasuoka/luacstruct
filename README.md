@@ -43,9 +43,9 @@ This document assumes that Lua is embed already in your application.
 luacs_newstruct(L, yourapp_type);	// don't surround "..."
 
 // member fields
-luacs_int_field(L, yourapp_type, field1);  // `field1' field
-luacs_int_field(L, yourapp_type, field2);  // `field2' field
-luacs_strptr_field(L, yourapp_type, name); // `name' field
+luacs_int_field(L, yourapp_type, field1, 0);  // `field1' field
+luacs_int_field(L, yourapp_type, field2, 0);  // `field2' field
+luacs_strptr_field(L, yourapp_type, name, 0); // `name' field
 
 lua_pop(L, 1);		              // pop the luacstruct
 ```
