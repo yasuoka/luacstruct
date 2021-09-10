@@ -40,13 +40,15 @@ enum luacstruct_type {
 	LUACS_TOBJREF,
 	LUACS_TOBJENT,
 	LUACS_TEXTREF,
-	LUACS_TARRAY
+	LUACS_TARRAY,
+	LUACS_TMETHOD
 };
 
 #define LUACS_FREADONLY	1
 
 __BEGIN_DECLS
 int	 luacs_newstruct0(lua_State *, const char *);
+int	 luacs_declare_method(lua_State *, const char *, int (*)(lua_State *));
 int	 luacs_delstruct(lua_State *, const char *);
 int	 luacs_declare_field(lua_State *, enum luacstruct_type,
 	    const char *, const char *, size_t, int, int, unsigned);

@@ -106,6 +106,7 @@ struct luacstruct_field {
 	struct luacregeon		 regeon;
 	int				 nmemb;
 	unsigned			 flags;
+	int				(*func)(lua_State *);
 	SPLAY_ENTRY(luacstruct_field)	 tree;
 	TAILQ_ENTRY(luacstruct_field)	 queue;
 };
@@ -142,6 +143,9 @@ struct luacenum_value {
 static struct luacstruct
 		*luacs_checkstruct(lua_State *, int);
 static int	 luacs_struct__gc(lua_State *);
+static struct luacstruct_field
+		*luacs_declare(lua_State *, enum luacstruct_type, const char *,
+		    const char *, size_t, int, int, unsigned);
 static int	 luacstruct_field_cmp(struct luacstruct_field *,
 		    struct luacstruct_field *);
 static int	 luacs_pushctype(lua_State *, enum luacstruct_type,
@@ -273,6 +277,15 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
     const char *tname, const char *name, size_t siz, int off, int nmemb,
     unsigned flags)
 {
+	luacs_declare(L, _type, tname, name, siz, off, nmemb, flags);
+	return (0);
+}
+
+struct luacstruct_field	*
+luacs_declare(lua_State *L, enum luacstruct_type _type,
+    const char *tname, const char *name, size_t siz, int off, int nmemb,
+    unsigned flags)
+{
 	struct luacstruct_field	*field, *field0;
 	struct luacstruct	*cs;
 	char			 buf[BUFSIZ];
@@ -323,6 +336,17 @@ luacs_declare_field(lua_State *L, enum luacstruct_type _type,
 		TAILQ_INSERT_TAIL(&cs->sorted, field, queue);
 	else
 		TAILQ_INSERT_BEFORE(field0, field, queue);
+
+	return (field);
+}
+
+int
+luacs_declare_method(lua_State *L, const char *name, int (*func)(lua_State *))
+{
+	struct luacstruct_field	 *field;
+
+	field = luacs_declare(L, LUACS_TMETHOD, NULL, name, 0, 0, 0, 0);
+	field->func = func;
 
 	return (0);
 }
@@ -861,6 +885,7 @@ luacs_newobject0(lua_State *L, void *ptr)
 	struct luacobject	*obj;
 	struct luacstruct	*cs;
 	int			 ret;
+	struct luacstruct_field	*field;
 
 	cs = luacs_checkstruct(L, -1);
 	obj = lua_newuserdata(L, sizeof(struct luacobject));
@@ -881,6 +906,16 @@ luacs_newobject0(lua_State *L, void *ptr)
 	}
 	lua_setmetatable(L, -2);
 	lua_newtable(L);
+
+	SPLAY_FOREACH(field, luacstruct_fields, &cs->fields) {
+		if (field->type == LUACS_TMETHOD) {
+			/* pass the obj pointer as 1st upvalue */
+			lua_pushlightuserdata(L, obj->ptr);
+			lua_pushcclosure(L, field->func, 1);
+			lua_setfield(L, -2, field->fieldname);
+		}
+	}
+
 	obj->tblref = luacs_ref(L);
 
 	return (1);
@@ -934,6 +969,7 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 		}
 		break;
 	case LUACS_TEXTREF:
+	case LUACS_TMETHOD:
 		luacs_getref(L, obj->tblref);
 		lua_getfield(L, -1, field->fieldname);
 		lua_remove(L, -2);
