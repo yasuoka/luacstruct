@@ -160,6 +160,7 @@ static int	 luacs_array__next(lua_State *);
 static int	 luacs_array__pairs(lua_State *);
 static int	 luacs_array__gc(lua_State *);
 static int	 luacs_newobject0(lua_State *, void *);
+static int	 luacs_object__tostring(lua_State *);
 static int	 luacs_object__index(lua_State *);
 static int	 luacs_object__get(lua_State *, struct luacobject *,
 		    struct luacstruct_field *);
@@ -903,6 +904,8 @@ luacs_newobject0(lua_State *L, void *ptr)
 		lua_setfield(L, -2, "__pairs");
 		lua_pushcfunction(L, luacs_object__gc);
 		lua_setfield(L, -2, "__gc");
+		lua_pushcfunction(L, luacs_object__tostring);
+		lua_setfield(L, -2, "__tostring");
 	}
 	lua_setmetatable(L, -2);
 	lua_newtable(L);
@@ -917,6 +920,27 @@ luacs_newobject0(lua_State *L, void *ptr)
 	}
 
 	obj->tblref = luacs_ref(L);
+
+	return (1);
+}
+
+int
+luacs_object__tostring(lua_State *L)
+{
+	struct luacobject	*obj;
+	char			 buf[BUFSIZ];
+
+	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+
+	lua_getfield(L, 1, "__tostring");
+	if (!lua_isnil(L, -1)) {
+		lua_pushvalue(L, 1);
+		lua_call(L, 1, 1);
+	} else {
+		snprintf(buf, sizeof(buf), "struct %s: %p", obj->cs->typename,
+		    obj->ptr);
+		lua_pushstring(L, buf);
+	}
 
 	return (1);
 }
