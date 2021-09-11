@@ -391,8 +391,6 @@ luacs_arraytype__gc(lua_State *L)
 	struct luacarraytype	*cat;
 
 	cat = luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
-	if (1)
-		LUACS_DBG("%s(%p)", __func__, cat);
 
 	return (0);
 }
