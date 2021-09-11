@@ -229,8 +229,11 @@ local main = function()
 		assert(v == i * 2)
 		i = i + 1
 	end
-	print(m1.intxy[1][1])
-	print(m1.intxy[1][2])
+
+	yamada = test_tostring()
+	assert(tostring(yamada) == "yamada(168,63)")
+	assert(22.0 <= yamada.bmi() and yamada.bmi() < 23.0)
+
 end
 if _VERSION == "Lua 5.1" then
 	local _pairs = pairs

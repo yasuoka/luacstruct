@@ -10,6 +10,7 @@ controlling access to the fields of the struct.
     * [3. Declare a C struct in your application](#3-declare-a-c-struct-in-your-application)
     * [4. Map an instance of the struct](#4-map-an-instance-of-the-struct)
     * [5. Declare a enum in your application](#5-declare-a-enum-in-your-application)
+    * [6. Declare a method](#6-declare-a-method)
 
 ## How to use
 
@@ -207,4 +208,60 @@ color = COLOR.get(1)		-- get COLOR object by an integer
 COLOR.memberof(obj)		-- check whether an object is COLOR
 local ival = color.tointeger()	-- get an integer value
 print(color)			-- pretty output like "GREEN(1)"
+```
+
+### 6. Declare a method
+
+```c
+struct person {
+	const char	*name;
+	int		 height;	/* in cm */
+	int		 weight;	/* in kg */
+};
+
+// declare struct person
+luacs_newstruct(L, person);
+luacs_strptr_field(L, person, name, 0);
+luacs_int_field(L, person, height, 0);
+luacs_int_field(L, person, weight, 0);
+```
+
+To add bmi() method which calculates BMI(body math index) to this object,
+create a C function which returns BMI and call `luacs_declare_method`
+for it.
+
+```c
+static int
+person_bmi(lua_State *L)
+{
+	struct person *self;
+
+	/* the pointer is passed through 1st upvalue */
+	self = lua_touserdata(L, lua_upvalueindex(1));
+	lua_pushnumber(L, ((double)self->weight / (self->height *
+	    self->height)) * 10000.0);
+
+	return (1);
+}
+
+luacs_declare_method(L, "bmi", person_bmi);
+```
+
+You can also override __tostring() in the same way.
+
+```c
+static int
+person_bmi(lua_State *L)
+{
+	struct person *self;
+
+	/* the pointer is passed through 1st upvalue */
+	self = lua_touserdata(L, lua_upvalueindex(1));
+	lua_pushnumber(L, ((double)self->weight / (self->height *
+	    self->height)) * 10000.0);
+
+	return (1);
+}
+
+luacs_declare_method(L, "__tostring", person_tostring);
 ```

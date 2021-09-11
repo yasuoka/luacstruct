@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <lua.h>
 #include "luacstruct.h"
 
@@ -8,6 +9,7 @@ static int l_test_ext(lua_State *);
 static int l_test_enum(lua_State *);
 static int l_test_copy(lua_State *);
 static int l_test_array(lua_State *);
+static int l_test_tostring(lua_State *);
 
 int
 luaopen_extra(lua_State *L)
@@ -18,6 +20,7 @@ luaopen_extra(lua_State *L)
 	lua_register(L, "test_enum", l_test_enum);
 	lua_register(L, "test_copy", l_test_copy);
 	lua_register(L, "test_array", l_test_array);
+	lua_register(L, "test_tostring", l_test_tostring);
 
 	return (0);
 }
@@ -281,4 +284,57 @@ l_test_array(lua_State *L)
 
 
 	return (4);
+}
+
+struct person {
+	const char	*name;
+	int		 height;	/* in cm */
+	int		 weight;	/* in kg */
+};
+
+static int
+person_bmi(lua_State *L)
+{
+	struct person *self;
+
+	/* the pointer is passed through 1st upvalue */
+	self = lua_touserdata(L, lua_upvalueindex(1));
+	lua_pushnumber(L, ((double)self->weight / (self->height *
+	    self->height)) * 10000.0);
+
+	return (1);
+}
+
+static int
+person_tostring(lua_State *L)
+{
+	struct person *self;
+	char	*buf = NULL;
+
+	self = lua_touserdata(L, lua_upvalueindex(1));
+	asprintf(&buf, "%s(%d,%d)", self->name, self->height, self->weight);
+	lua_pushstring(L, buf);
+	free(buf);
+
+	return (1);
+}
+
+int
+l_test_tostring(lua_State *L)
+{
+	luacs_newstruct(L, person);
+	luacs_strptr_field(L, person, name, 0);
+	luacs_int_field(L, person, height, 0);
+	luacs_int_field(L, person, weight, 0);
+
+	luacs_declare_method(L, "bmi", person_bmi);
+	luacs_declare_method(L, "__tostring", person_tostring);
+
+	lua_pop(L, 1);
+
+	static struct person aperson = { .name = "yamada", 168, 63 };
+
+	luacs_newobject(L, "person", &aperson);
+
+	return (1);
 }
