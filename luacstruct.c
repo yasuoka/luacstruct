@@ -944,6 +944,17 @@ luacs_object__tostring(lua_State *L)
 }
 
 int
+luacs_object_typename(lua_State *L)
+{
+	struct luacobject	*obj;
+
+	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	lua_pushstring(L, obj->cs->typename);
+
+	return (1);
+}
+
+int
 luacs_object__index(lua_State *L)
 {
 	struct luacobject	*obj;

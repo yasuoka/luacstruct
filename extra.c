@@ -21,6 +21,7 @@ luaopen_extra(lua_State *L)
 	lua_register(L, "test_copy", l_test_copy);
 	lua_register(L, "test_array", l_test_array);
 	lua_register(L, "test_tostring", l_test_tostring);
+	lua_register(L, "typename", luacs_object_typename);
 
 	return (0);
 }
