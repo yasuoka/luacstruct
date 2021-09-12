@@ -193,10 +193,10 @@ __END_DECLS
 		    offsetof(struct _type, _field),		\
 		    _nitems(((struct _type *)0)->_field), _flags);\
 	} while (0/*CONSTCOND*/)
-#define luacs_unsigned_array_field(_L, _type, _field, _flags)		\
+#define luacs_unsigned_array_field(_L, _type, _field, _flags)	\
 	do {							\
 		static_assert(validintwidth(			\
-		    sizeof((struct _type *)0)->_field),		\
+		    sizeof((struct _type *)0)->_field[0]),	\
 		    "`"#_field"' is an unsupported int type");	\
 		enum luacstruct_type _itype;			\
 		switch (sizeof(((struct _type *)0)->_field[0])){\
