@@ -340,6 +340,12 @@ luacs_declare(lua_State *L, enum luacstruct_type _type,
 		lua_pushstring(L, buf);
 		lua_error(L);
 	}
+	while ((field0 = SPLAY_FIND(luacstruct_fields, &cs->fields, field))
+	    != NULL) {
+		SPLAY_REMOVE(luacstruct_fields, &cs->fields, field0);
+		TAILQ_REMOVE(&cs->sorted, field0, queue);
+		free(field0);
+	}
 	field->regeon.type = _type;
 	field->regeon.off = off;
 	field->regeon.size = siz;
