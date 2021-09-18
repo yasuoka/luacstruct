@@ -47,7 +47,7 @@ enum luacstruct_type {
 #define LUACS_FREADONLY	1
 
 __BEGIN_DECLS
-int	 luacs_newstruct0(lua_State *, const char *);
+int	 luacs_newstruct0(lua_State *, const char *, const char *);
 int	 luacs_declare_method(lua_State *, const char *, int (*)(lua_State *));
 int	 luacs_delstruct(lua_State *, const char *);
 int	 luacs_declare_field(lua_State *, enum luacstruct_type,
@@ -67,7 +67,7 @@ __END_DECLS
 #define luacs_newstruct(_L, _typename)				\
 	do {							\
 		{ struct _typename; /* check valid for type */}	\
-		luacs_newstruct0((_L), #_typename);		\
+		luacs_newstruct0((_L), #_typename, NULL);	\
 	} while(0/*CONSTCOND*/)
 #define luacs_newenum(_L, _enumname)				\
 	do {							\

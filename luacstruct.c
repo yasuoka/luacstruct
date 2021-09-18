@@ -148,6 +148,8 @@ static struct luacstruct_field
 		    const char *, size_t, int, int, unsigned);
 static int	 luacstruct_field_cmp(struct luacstruct_field *,
 		    struct luacstruct_field *);
+static struct luacstruct_field
+		*luacsfield_copy(lua_State *, struct luacstruct_field *);
 static int	 luacs_pushctype(lua_State *, enum luacstruct_type,
 		    const char *);
 static int	 luacs_newarray0(lua_State *, enum luacstruct_type, int, size_t,
@@ -198,13 +200,29 @@ SPLAY_PROTOTYPE(luacstruct_fields, luacstruct_field, tree,
 SPLAY_PROTOTYPE(luacenum_labels, luacenum_value, treel, luacenum_label_cmp);
 SPLAY_PROTOTYPE(luacenum_values, luacenum_value, treev, luacenum_value_cmp);
 
+
 /* struct */
 int
-luacs_newstruct0(lua_State *L, const char *tname)
+luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 {
 	int			 ret;
-	struct luacstruct	*cs;
-	char			 metaname[METANAMELEN];
+	struct luacstruct	*cs, *supercs = NULL;
+	char			 metaname[METANAMELEN], buf[128];
+	struct luacstruct_field	*fieldf, *fieldt;
+
+	if (supertname != NULL) {
+		snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE,
+		    supertname);
+		lua_getfield(L, LUA_REGISTRYINDEX, metaname);
+		if (lua_isnil(L, -1)) {
+			snprintf(buf, sizeof(buf), "`%s' is not regisiterd",
+			    supertname);
+			lua_pushstring(L, buf);
+			lua_error(L);
+			return (0);	/* not reached */
+		}
+		supercs = luacs_checkstruct(L, -1);
+	}
 
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
@@ -223,6 +241,21 @@ luacs_newstruct0(lua_State *L, const char *tname)
 	cs->typename = index(cs->metaname, '.') + 1;
 	SPLAY_INIT(&cs->fields);
 	TAILQ_INIT(&cs->sorted);
+
+	/* Inherit from super struct if specified */
+	if (supercs != NULL) {
+		TAILQ_FOREACH(fieldf, &supercs->sorted, queue) {
+			if ((fieldt = luacsfield_copy(L, fieldf)) == NULL) {
+				strerror_r(errno, buf, sizeof(buf));
+				lua_pushstring(L, buf);
+				lua_error(L);
+				return (0);	/* not reached */
+			}
+			TAILQ_INSERT_TAIL(&cs->sorted, fieldt, queue);
+			SPLAY_INSERT(luacstruct_fields, &cs->fields, fieldt);
+		}
+	}
+
 	if ((ret = luaL_newmetatable(L, METANAME_LUACSTRUCT)) != 0) {
 		lua_pushcfunction(L, luacs_struct__gc);
 		lua_setfield(L, -2, "__gc");
@@ -359,6 +392,32 @@ int
 luacstruct_field_cmp(struct luacstruct_field *a, struct luacstruct_field *b)
 {
 	return (strcmp(a->fieldname, b->fieldname));
+}
+
+struct luacstruct_field *
+luacsfield_copy(lua_State *L, struct luacstruct_field *from)
+{
+	struct luacstruct_field	*to;
+
+	to = calloc(1, sizeof(struct luacstruct_field));
+	if (to == NULL)
+		return (NULL);
+	memcpy(to, from, sizeof(struct luacstruct_field));
+	if ((to->fieldname = strdup(from->fieldname)) == NULL) {
+		free(to);
+		return (NULL);
+	}
+	/* Update refs */
+	if (from->regeon.typref != 0) {
+		luacs_getref(L, from->regeon.typref);
+		to->regeon.typref = luacs_ref(L);
+	}
+	if (from->ref != 0) {
+		luacs_getref(L, from->ref);
+		to->ref = luacs_ref(L);
+	}
+
+	return (to);
 }
 
 int
