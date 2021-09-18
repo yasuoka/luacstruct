@@ -206,7 +206,7 @@ Also it has some useful methods:
 ```lua
 color = COLOR.get(1)		-- get COLOR object by an integer
 COLOR.memberof(obj)		-- check whether an object is COLOR
-local ival = color.tointeger()	-- get an integer value
+local ival = color:tointeger()	-- get an integer value
 print(color)			-- pretty output like "GREEN(1)"
 ```
 

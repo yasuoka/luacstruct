@@ -69,6 +69,20 @@ local main = function()
 	assert(m.invalid_color)
 	-- we can use as a number
 	assert(type(m.invalid_color) == "number")
+	-- check iteratable
+	iter = pairs(color)
+	k, v = iter(color, nil)
+	assert(k == "RED")
+	k, v = iter(color, k)
+	assert(k == "GREEN")
+	k, v = iter(color, k)
+	assert(k == "BLUE")
+	k, v = iter(color, k)
+	assert(k == nil)
+	-- extra functions
+	assert(color.get(1) == color.GREEN)
+	assert(color.memberof(color.GREEN))
+	assert(color.GREEN:tointeger() == 1)
 
 	--print(color)
 	--print(color.RED)

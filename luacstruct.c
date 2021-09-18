@@ -130,6 +130,8 @@ struct luacenum {
 					 labels;
 	SPLAY_HEAD(luacenum_values, luacenum_value)
 					 values;
+	int				 func_get;
+	int				 func_memberof;
 };
 
 struct luacenum_value {
@@ -1463,12 +1465,16 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 		lua_pushcfunction(L, luacs_enum__next);
 		lua_pushcclosure(L, luacs_enum__pairs, 1);
 		lua_setfield(L, -2, "__pairs");
-		lua_pushcfunction(L, luacs_enum_get);
-		lua_setfield(L, -2, "get");
-		lua_pushcfunction(L, luacs_enum_memberof);
-		lua_setfield(L, -2, "memberof");
 	}
 	lua_setmetatable(L, -2);
+
+	lua_pushvalue(L, -1);
+	lua_pushcclosure(L, luacs_enum_get, 1);
+	ce->func_get = luacs_ref(L);
+
+	lua_pushvalue(L, -1);
+	lua_pushcclosure(L, luacs_enum_memberof, 1);
+	ce->func_memberof = luacs_ref(L);
 
 	return (1);
 }
@@ -1506,8 +1512,8 @@ luacs_enum_get(lua_State *L)
 	struct luacenum		*ce;
 	struct luacenum_value	*val, vkey;
 
-	ce = luacs_checkenum(L, 1);
-	vkey.value = luaL_checkinteger(L, 2);
+	ce = luacs_checkenum(L, lua_upvalueindex(1));
+	vkey.value = luaL_checkinteger(L, 1);
 
 	if ((val = SPLAY_FIND(luacenum_values, &ce->values, &vkey)) == NULL)
 		lua_pushnil(L);
@@ -1523,8 +1529,8 @@ luacs_enum_memberof(lua_State *L)
 	struct luacenum		*ce;
 	struct luacenum_value	*val, *val1;
 
-	ce = luacs_checkenum(L, 1);
-	val = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
+	ce = luacs_checkenum(L, lua_upvalueindex(1));
+	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	val1 = luacs_enum_get0(ce, val->value);
 	lua_pushboolean(L, val1 != NULL && val1 == val);
 
@@ -1539,9 +1545,14 @@ luacs_enum__index(lua_State *L)
 
 	ce = luacs_checkenum(L, 1);
 	vkey.label = luaL_checkstring(L, 2);
-	if ((val = SPLAY_FIND(luacenum_labels, &ce->labels, &vkey)) == NULL)
-		lua_pushnil(L);
-	else
+	if ((val = SPLAY_FIND(luacenum_labels, &ce->labels, &vkey)) == NULL) {
+		if (strcmp(vkey.label, "get") == 0)
+			luacs_getref(L, ce->func_get);
+		else if (strcmp(vkey.label, "memberof") == 0)
+			luacs_getref(L, ce->func_memberof);
+		else
+			lua_pushnil(L);
+	} else
 		luacs_getref(L, val->ref);
 
 	return (1);
@@ -1599,6 +1610,7 @@ luacs_enum__gc(lua_State *L)
 		luacs_unref(L, val->ref);
 		val = valtmp;
 	}
+	luacs_unref(L, ce->func_get);
 
 	return (0);
 }
