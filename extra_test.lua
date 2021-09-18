@@ -232,7 +232,7 @@ local main = function()
 
 	yamada = test_tostring()
 	assert(tostring(yamada) == "yamada(168,63)")
-	assert(22.0 <= yamada.bmi() and yamada.bmi() < 23.0)
+	assert(22.0 <= yamada:bmi() and yamada:bmi() < 23.0)
 	assert(typename(yamada) == "person")
 
 end

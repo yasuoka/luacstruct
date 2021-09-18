@@ -298,8 +298,7 @@ person_bmi(lua_State *L)
 {
 	struct person *self;
 
-	/* the pointer is passed through 1st upvalue */
-	self = lua_touserdata(L, lua_upvalueindex(1));
+	self = luacs_object_pointer(L, 1);
 	lua_pushnumber(L, ((double)self->weight / (self->height *
 	    self->height)) * 10000.0);
 
@@ -312,7 +311,7 @@ person_tostring(lua_State *L)
 	struct person *self;
 	char	*buf = NULL;
 
-	self = lua_touserdata(L, lua_upvalueindex(1));
+	self = luacs_object_pointer(L, 1);
 	asprintf(&buf, "%s(%d,%d)", self->name, self->height, self->weight);
 	lua_pushstring(L, buf);
 	free(buf);

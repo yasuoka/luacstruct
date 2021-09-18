@@ -106,7 +106,7 @@ struct luacstruct_field {
 	struct luacregeon		 regeon;
 	int				 nmemb;
 	unsigned			 flags;
-	int				(*func)(lua_State *);
+	int				 ref;
 	SPLAY_ENTRY(luacstruct_field)	 tree;
 	TAILQ_ENTRY(luacstruct_field)	 queue;
 };
@@ -264,6 +264,8 @@ luacs_struct__gc(lua_State *L)
 		    NULL) {
 			if (field->regeon.typref > 0)
 				luacs_unref(L, field->regeon.typref);
+			if (field->ref != 0)
+				luacs_unref(L, field->ref);
 			SPLAY_REMOVE(luacstruct_fields, &cs->fields, field);
 			free((char *)field->fieldname);
 			free(field);
@@ -347,7 +349,8 @@ luacs_declare_method(lua_State *L, const char *name, int (*func)(lua_State *))
 	struct luacstruct_field	 *field;
 
 	field = luacs_declare(L, LUACS_TMETHOD, NULL, name, 0, 0, 0, 0);
-	field->func = func;
+	lua_pushcfunction(L, func);
+	field->ref = luacs_ref(L);
 
 	return (0);
 }
@@ -884,7 +887,6 @@ luacs_newobject0(lua_State *L, void *ptr)
 	struct luacobject	*obj;
 	struct luacstruct	*cs;
 	int			 ret;
-	struct luacstruct_field	*field;
 
 	cs = luacs_checkstruct(L, -1);
 	obj = lua_newuserdata(L, sizeof(struct luacobject));
@@ -908,18 +910,21 @@ luacs_newobject0(lua_State *L, void *ptr)
 	lua_setmetatable(L, -2);
 	lua_newtable(L);
 
-	SPLAY_FOREACH(field, luacstruct_fields, &cs->fields) {
-		if (field->type == LUACS_TMETHOD) {
-			/* pass the obj pointer as 1st upvalue */
-			lua_pushlightuserdata(L, obj->ptr);
-			lua_pushcclosure(L, field->func, 1);
-			lua_setfield(L, -2, field->fieldname);
-		}
-	}
-
 	obj->tblref = luacs_ref(L);
 
 	return (1);
+}
+
+void *
+luacs_object_pointer(lua_State *L, int ref)
+{
+	struct luacobject	*obj;
+
+	obj = luaL_checkudata(L, ref, METANAME_LUACSTRUCTOBJ);
+	if (obj != NULL)
+		return (obj->ptr);
+
+	return (NULL);
 }
 
 int
@@ -1002,7 +1007,6 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 		}
 		break;
 	case LUACS_TEXTREF:
-	case LUACS_TMETHOD:
 		luacs_getref(L, obj->tblref);
 		lua_getfield(L, -1, field->fieldname);
 		lua_remove(L, -2);
@@ -1025,6 +1029,9 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 			lua_setfield(L, -3, field->fieldname);
 		}
 		lua_remove(L, -2);
+		break;
+	case LUACS_TMETHOD:
+		luacs_getref(L, field->ref);
 		break;
 	}
 
