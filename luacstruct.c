@@ -1419,7 +1419,6 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 		luaL_checkstring(L, absidx);
 		siz = lua_rawlen(L, absidx);
 		luaL_argcheck(L, siz < regeon->size, absidx, "too long");
-		memset(obj->ptr + regeon->off, 0, regeon->size);
 		memcpy(obj->ptr + regeon->off, lua_tostring(L, absidx),
 		    MINIMUM(siz, regeon->size));
 		if (regeon->type == LUACS_TSTRING)
