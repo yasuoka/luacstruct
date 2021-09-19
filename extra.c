@@ -3,6 +3,10 @@
 #include <lua.h>
 #include "luacstruct.h"
 
+#ifndef static_assert
+#define static_assert(_cond, _msg) ((void)0)
+#endif
+
 static int l_test_ref(lua_State *);
 static int l_test_nest(lua_State *);
 static int l_test_ext(lua_State *);
