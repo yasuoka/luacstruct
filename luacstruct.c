@@ -75,6 +75,10 @@
 #define	nitems(_x)		(sizeof(_x) / sizeof((_x)[0]))
 #endif
 
+#ifndef __unused
+#define __unused       __attribute__((__unused__))
+#endif
+
 struct luacstruct {
 	const char			*typename;
 	char				 metaname[METANAMELEN];
