@@ -458,9 +458,7 @@ luacs_pushctype(lua_State *L, enum luacstruct_type _type, const char *tname)
 int
 luacs_arraytype__gc(lua_State *L)
 {
-	struct luacarraytype	*cat;
-
-	cat = luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
+	luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
 
 	return (0);
 }
@@ -1682,8 +1680,7 @@ luacs_enumvalue__tostring(lua_State *L)
 int
 luacs_enumvalue__gc(lua_State *L)
 {
-	struct luacenum_value	*val;
-	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 
 	return (0);
 }
