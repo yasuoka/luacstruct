@@ -297,6 +297,7 @@ luacs_struct__gc(lua_State *L)
 	struct luacstruct	*cs;
 	struct luacstruct_field	*field;
 
+	lua_settop(L, 1);
 	cs = luacs_checkstruct(L, 1);
 	if (cs) {
 		while ((field = SPLAY_MIN(luacstruct_fields, &cs->fields)) !=
@@ -603,6 +604,7 @@ luacs_array__len(lua_State *L)
 {
 	struct luacobject	*obj;
 
+	lua_settop(L, 1);
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	lua_pushinteger(L, obj->nmemb);
 
@@ -618,6 +620,7 @@ luacs_array__index(lua_State *L)
 	struct luacregeon	 regeon;
 	void			*ptr;
 
+	lua_settop(L, 2);
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	idx = luaL_checkinteger(L, 2);
 	if (idx < 1 || obj->nmemb < idx) {
@@ -701,6 +704,7 @@ luacs_array__newindex(lua_State *L)
 	struct luacregeon	 regeon;
 	struct luacstruct	*cs0;
 
+	lua_settop(L, 3);
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	idx = luaL_checkinteger(L, 2);
 	if (idx < 1 || obj->nmemb < idx) { /* out of the range */
@@ -787,6 +791,7 @@ luacs_array_copy(lua_State *L)
 	struct luacregeon	 regeon;
 	int			 idx;
 
+	lua_settop(L, 2);
 	l = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	r = luaL_checkudata(L, 2, METANAME_LUACARRAY);
 
@@ -890,8 +895,8 @@ luacs_array__next(lua_State *L)
 	struct luacobject	*obj;
 	int			 idx = 0;
 
-	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	lua_settop(L, 2);
+	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	if (!lua_isnil(L, 2))
 		idx = luaL_checkinteger(L, 2);
 
@@ -911,6 +916,7 @@ luacs_array__next(lua_State *L)
 int
 luacs_array__pairs(lua_State *L)
 {
+	lua_settop(L, 1);
 	luaL_checkudata(L, 1, METANAME_LUACARRAY);
 
 	lua_pushvalue(L, lua_upvalueindex(1));
@@ -925,6 +931,7 @@ luacs_array__gc(lua_State *L)
 {
 	struct luacobject	*obj;
 
+	lua_settop(L, 1);
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	if (obj->typref != 0)
 		luacs_unref(L, obj->typref);
@@ -1002,6 +1009,7 @@ luacs_object__tostring(lua_State *L)
 	struct luacobject	*obj;
 	char			 buf[BUFSIZ];
 
+	lua_settop(L, 1);
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 
 	lua_getfield(L, 1, "__tostring");
@@ -1022,6 +1030,7 @@ luacs_object_typename(lua_State *L)
 {
 	struct luacobject	*obj;
 
+	lua_settop(L, 1);
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	lua_pushstring(L, obj->cs->typename);
 
@@ -1034,6 +1043,7 @@ luacs_object__index(lua_State *L)
 	struct luacobject	*obj;
 	struct luacstruct_field	 fkey, *field;
 
+	lua_settop(L, 2);
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	fkey.fieldname = luaL_checkstring(L, 2);
 	if ((field = SPLAY_FIND(luacstruct_fields, &obj->cs->fields, &fkey))
@@ -1114,6 +1124,7 @@ luacs_object__newindex(lua_State *L)
 	struct luacobject	*obj, *ano;
 	struct luacstruct_field	 fkey, *field;
 
+	lua_settop(L, 3);
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	fkey.fieldname = luaL_checkstring(L, 2);
 	if ((field = SPLAY_FIND(luacstruct_fields, &obj->cs->fields, &fkey))
@@ -1188,6 +1199,7 @@ luacs_object_copy(lua_State *L)
 	struct luacobject	*l, *r;
 	struct luacstruct_field	*field;
 
+	lua_settop(L, 2);
 	l = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	r = luaL_checkudata(L, 2, METANAME_LUACSTRUCTOBJ);
 	if (l->cs != r->cs) {
@@ -1221,6 +1233,7 @@ luacs_object__next(lua_State *L)
 	struct luacobject	*obj;
 	struct luacstruct_field	*field, fkey;
 
+	lua_settop(L, 2);
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	if (lua_isnil(L, 2))
 		field = TAILQ_FIRST(&obj->cs->sorted);
@@ -1243,6 +1256,7 @@ luacs_object__next(lua_State *L)
 int
 luacs_object__pairs(lua_State *L)
 {
+	lua_settop(L, 1);
 	lua_pushvalue(L, lua_upvalueindex(1));
 	lua_pushvalue(L, 1);
 	lua_pushnil(L);
@@ -1255,6 +1269,7 @@ luacs_object__gc(lua_State *L)
 {
 	struct luacobject	*obj;
 
+	lua_settop(L, 1);
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
 	luacs_unref(L, obj->typref);
 	luacs_unref(L, obj->tblref);
@@ -1519,6 +1534,7 @@ luacs_enum_get(lua_State *L)
 	struct luacenum		*ce;
 	struct luacenum_value	*val, vkey;
 
+	lua_settop(L, 1);
 	ce = luacs_checkenum(L, lua_upvalueindex(1));
 	vkey.value = luaL_checkinteger(L, 1);
 
@@ -1536,6 +1552,7 @@ luacs_enum_memberof(lua_State *L)
 	struct luacenum		*ce;
 	struct luacenum_value	*val, *val1;
 
+	lua_settop(L, 1);
 	ce = luacs_checkenum(L, lua_upvalueindex(1));
 	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	val1 = luacs_enum_get0(ce, val->value);
@@ -1550,6 +1567,7 @@ luacs_enum__index(lua_State *L)
 	struct luacenum		*ce;
 	struct luacenum_value	*val, vkey;
 
+	lua_settop(L, 2);
 	ce = luacs_checkenum(L, 1);
 	vkey.label = luaL_checkstring(L, 2);
 	if ((val = SPLAY_FIND(luacenum_labels, &ce->labels, &vkey)) == NULL) {
@@ -1571,6 +1589,7 @@ luacs_enum__next(lua_State *L)
 	struct luacenum		*ce;
 	struct luacenum_value	*val, vkey;
 
+	lua_settop(L, 2);
 	ce = luacs_checkenum(L, 1);
 	if (lua_isnil(L, 2))
 		val= SPLAY_MIN(luacenum_values, &ce->values);
@@ -1594,6 +1613,7 @@ luacs_enum__next(lua_State *L)
 int
 luacs_enum__pairs(lua_State *L)
 {
+	lua_settop(L, 1);
 	luacs_checkenum(L, 1);
 	lua_pushvalue(L, lua_upvalueindex(1));
 	lua_pushvalue(L, 1);
@@ -1608,6 +1628,7 @@ luacs_enum__gc(lua_State *L)
 	struct luacenum		*ce;
 	struct luacenum_value	*val, *valtmp;
 
+	lua_settop(L, 1);
 	ce = luacs_checkenum(L, 1);
 	val = SPLAY_MIN(luacenum_labels, &ce->labels);
 	while (val != NULL) {
@@ -1661,6 +1682,7 @@ luacs_enumvalue_tointeger(lua_State *L)
 {
 	struct luacenum_value	*val;
 
+	lua_settop(L, 1);
 	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	lua_pushinteger(L, val->value);
 
@@ -1673,6 +1695,7 @@ luacs_enumvalue__tostring(lua_State *L)
 	struct luacenum_value	*val;
 	char			 buf[128];
 
+	lua_settop(L, 1);
 	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	/* Lua supports limitted int width for number2tstr */
 	snprintf(buf, sizeof(buf), "%jd", val->value);
@@ -1684,6 +1707,7 @@ luacs_enumvalue__tostring(lua_State *L)
 int
 luacs_enumvalue__gc(lua_State *L)
 {
+	lua_settop(L, 1);
 	luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 
 	return (0);
