@@ -139,6 +139,7 @@ struct luacenum {
 };
 
 struct luacenum_value {
+	struct luacenum			*ce;
 	intmax_t			 value;
 	int				 ref;
 	const char			*label;
@@ -1277,6 +1278,19 @@ luacs_object__gc(lua_State *L)
 	return (0);
 }
 
+void *
+luacs_checkobject(lua_State *L, int idx, const char *typename)
+{
+	struct luacobject	*obj;
+
+	obj = luaL_checkudata(L, idx, METANAME_LUACSTRUCTOBJ);
+	if (strcmp(obj->cs->typename, typename) != 0)
+		luaL_error(L, "%s expected, got %s", typename,
+		    obj->cs->typename);
+
+	return (obj->ptr);
+}
+
 /* regeon */
 int
 luacs_pushregeon(lua_State *L, struct luacobject *obj,
@@ -1660,6 +1674,7 @@ luacs_enum_declare_value(lua_State *L, const char *label, intmax_t value)
 	SPLAY_INSERT(luacenum_values, &ce->values, val);
 
 	lua_pushvalue(L, -1);
+	val->ce = ce;
 	val->ref = luacs_ref(L);	/* as for a ref from luacenum */
 	if ((ret = luaL_newmetatable(L, METANAME_LUACSENUMVAL)) != 0) {
 		lua_pushcfunction(L, luacs_enumvalue__gc);
@@ -1724,6 +1739,19 @@ luacenum_value_cmp(struct luacenum_value *a, struct luacenum_value *b)
 {
 	intmax_t	cmp = a->value - b->value;
 	return ((cmp == 0)? 0 : (cmp < 0)? -1 : 1);
+}
+
+int
+luacs_checkenumval(lua_State *L, int idx, const char *enumname)
+{
+	struct luacenum_value	*val;
+
+	val = luaL_checkudata(L, idx, METANAME_LUACSENUMVAL);
+	if (strcmp(val->ce->enumname, enumname) != 0)
+		luaL_error(L, "%s expected, got %s", enumname,
+		    val->ce->enumname);
+
+	return (val->value);
 }
 
 /* refs */

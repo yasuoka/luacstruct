@@ -55,9 +55,11 @@ int	 luacs_declare_field(lua_State *, enum luacstruct_type,
 int	 luacs_newobject(lua_State *, const char *, void *);
 void	*luacs_object_pointer(lua_State *L, int ref);
 int	 luacs_object_typename(lua_State *);
+void	*luacs_checkobject(lua_State *, int, const char *);
 int	 luacs_newenum0(lua_State *, const char *, size_t);
 int	 luacs_delenum(lua_State *, const char *);
 int	 luacs_enum_declare_value(lua_State *, const char *, intmax_t);
+int	 luacs_checkenumval(lua_State *, int, const char *);
 int	 luacs_newarray(lua_State *, enum luacstruct_type, const char *,
 	    size_t, int, unsigned, void *);
 int	 luacs_newarraytype(lua_State *, const char *, enum luacstruct_type,
