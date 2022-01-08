@@ -1340,6 +1340,9 @@ luacs_pushregeon(lua_State *L, struct luacobject *obj,
 		case 2:	value = *(int16_t *)(obj->ptr + regeon->off); break;
 		case 4:	value = *(int32_t *)(obj->ptr + regeon->off); break;
 		case 8:	value = *(int64_t *)(obj->ptr + regeon->off); break;
+		default:
+			luaL_error(L, "%s: obj is broken", __func__);
+			abort();
 		}
 		luacs_getref(L, regeon->typref);
 		ce = luacs_checkenum(L, -1);
@@ -1427,15 +1430,19 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 			lua_pushvalue(L, -2);
 			lua_pushvalue(L, absidx);
 			lua_call(L, 2, 1);
-			if (!lua_toboolean(L, -1)) {
-				lua_pushfstring(L,
+			if (!lua_toboolean(L, -1))
+				luaL_error(L,
 				    "must be a member of `enum %s",
 				    ce->enumname);
-				lua_error(L);
-			}
 			val = lua_touserdata(L, absidx);
 			value = val->value;
+		} else {
+			luaL_error(L, "must be a member of `enum %s",
+			    ce->enumname);
+			/* NOTREACHED */
+			abort();
 		}
+
 		ptr = obj->ptr + regeon->off;
 		switch (regeon->size) {
 		case 1: *(int8_t  *)(ptr) = value; break;
