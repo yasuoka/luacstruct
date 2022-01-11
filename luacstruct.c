@@ -1073,10 +1073,26 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 		if (ptr == NULL)
 			lua_pushnil(L);
 		else {
+			struct luacobject *cache = NULL;
+
 			luacs_getref(L, obj->tblref);
 			lua_getfield(L, -1, field->fieldname);
-			if (lua_isnil(L, -1)) {
+			if (lua_isnil(L, -1))
 				lua_pop(L, 1);
+			else {	/* has a cache */
+				cache = luaL_checkudata(L, -1,
+				    METANAME_LUACSTRUCTOBJ);
+				/* cached reference may be staled */
+				if (field->type == LUACS_TOBJREF &&
+				    cache->ptr !=
+				    *(void **)(obj->ptr + field->regeon.off)) {
+					lua_pop(L, 1);
+					lua_pushnil(L);
+					lua_setfield(L, -2, field->fieldname);
+					cache = NULL;
+				}
+			}
+			if (cache == NULL) {
 				luacs_getref(L, field->regeon.typref);
 				luacs_newobject0(L, ptr);
 				lua_pushvalue(L, -1);
