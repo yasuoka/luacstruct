@@ -157,6 +157,8 @@ static int	 luacstruct_field_cmp(struct luacstruct_field *,
 		    struct luacstruct_field *);
 static struct luacstruct_field
 		*luacsfield_copy(lua_State *, struct luacstruct_field *);
+static void	 luacstruct_field_free(lua_State *, struct luacstruct *,
+		    struct luacstruct_field *);
 static int	 luacs_pushctype(lua_State *, enum luacstruct_type,
 		    const char *);
 static int	 luacs_newarray0(lua_State *, enum luacstruct_type, int, size_t,
@@ -302,15 +304,8 @@ luacs_struct__gc(lua_State *L)
 	cs = luacs_checkstruct(L, 1);
 	if (cs) {
 		while ((field = SPLAY_MIN(luacstruct_fields, &cs->fields)) !=
-		    NULL) {
-			if (field->regeon.typref > 0)
-				luacs_unref(L, field->regeon.typref);
-			if (field->ref != 0)
-				luacs_unref(L, field->ref);
-			SPLAY_REMOVE(luacstruct_fields, &cs->fields, field);
-			free((char *)field->fieldname);
-			free(field);
-		}
+		    NULL)
+			luacstruct_field_free(L, cs, field);
 	}
 
 	return (0);
@@ -347,11 +342,8 @@ luacs_declare(lua_State *L, enum luacstruct_type _type,
 		lua_error(L);
 	}
 	while ((field0 = SPLAY_FIND(luacstruct_fields, &cs->fields, field))
-	    != NULL) {
-		SPLAY_REMOVE(luacstruct_fields, &cs->fields, field0);
-		TAILQ_REMOVE(&cs->sorted, field0, queue);
-		free(field0);
-	}
+	    != NULL)
+		luacstruct_field_free(L, cs, field0);
 	field->regeon.type = _type;
 	field->regeon.off = off;
 	field->regeon.size = siz;
@@ -416,11 +408,14 @@ luacsfield_copy(lua_State *L, struct luacstruct_field *from)
 	to = calloc(1, sizeof(struct luacstruct_field));
 	if (to == NULL)
 		return (NULL);
-	memcpy(to, from, sizeof(struct luacstruct_field));
 	if ((to->fieldname = strdup(from->fieldname)) == NULL) {
 		free(to);
 		return (NULL);
 	}
+	to->type = from->type;
+	to->regeon = from->regeon;
+	to->nmemb = from->nmemb;
+	to->flags = from->flags;
 	/* Update refs */
 	if (from->regeon.typref != 0) {
 		luacs_getref(L, from->regeon.typref);
@@ -432,6 +427,22 @@ luacsfield_copy(lua_State *L, struct luacstruct_field *from)
 	}
 
 	return (to);
+}
+
+void
+luacstruct_field_free(lua_State *L, struct luacstruct *cs,
+    struct luacstruct_field *field)
+{
+	if (field) {
+		if (field->regeon.typref > 0)
+			luacs_unref(L, field->regeon.typref);
+		if (field->ref != 0)
+			luacs_unref(L, field->ref);
+		TAILQ_REMOVE(&cs->sorted, field, queue);
+		SPLAY_REMOVE(luacstruct_fields, &cs->fields, field);
+		free((char *)field->fieldname);
+	}
+	free(field);
 }
 
 int
