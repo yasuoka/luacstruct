@@ -57,6 +57,7 @@ void	*luacs_object_pointer(lua_State *L, int ref);
 int	 luacs_object_typename(lua_State *);
 void	*luacs_checkobject(lua_State *, int, const char *);
 int	 luacs_newenum0(lua_State *, const char *, size_t);
+int	 luacs_newenumval(lua_State *, const char *, intmax_t);
 int	 luacs_delenum(lua_State *, const char *);
 int	 luacs_enum_declare_value(lua_State *, const char *, intmax_t);
 int	 luacs_checkenumval(lua_State *, int, const char *);

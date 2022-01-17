@@ -1595,6 +1595,29 @@ luacs_enum_get(lua_State *L)
 }
 
 int
+luacs_newenumval(lua_State *L, const char *ename, intmax_t ival)
+{
+	struct luacenum	*ce;
+	struct luacenum_value
+			*cv;
+	char		 metaname[METANAMELEN];
+
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, ename);
+	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
+	if (!lua_isnil(L, -1)) {
+		ce = luacs_checkenum(L, -1);
+		lua_pop(L, 1);
+		cv = luacs_enum_get0(ce, ival);
+		if (cv != NULL) {
+			luacs_getref(L, cv->ref);
+			return (1);
+		}
+		lua_pushnil(L);
+	}
+	return (1);
+}
+
+int
 luacs_enum_memberof(lua_State *L)
 {
 	struct luacenum		*ce;
