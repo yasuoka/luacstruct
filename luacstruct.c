@@ -196,6 +196,8 @@ static int	 luacs_enum__gc(lua_State *);
 static int	 luacs_enumvalue_tointeger(lua_State *);
 static int	 luacs_enumvalue__tostring(lua_State *);
 static int	 luacs_enumvalue__gc(lua_State *);
+static int	 luacs_enumvalue__eq(lua_State *);
+static int	 luacs_enumvalue__lt(lua_State *);
 static int	 luacenum_label_cmp(struct luacenum_value *,
 		    struct luacenum_value *);
 static int	 luacenum_value_cmp(struct luacenum_value *,
@@ -1736,6 +1738,10 @@ luacs_enum_declare_value(lua_State *L, const char *label, intmax_t value)
 	if ((ret = luaL_newmetatable(L, METANAME_LUACSENUMVAL)) != 0) {
 		lua_pushcfunction(L, luacs_enumvalue__gc);
 		lua_setfield(L, -2, "__gc");
+		lua_pushcfunction(L, luacs_enumvalue__lt);
+		lua_setfield(L, -2, "__lt");
+		lua_pushcfunction(L, luacs_enumvalue__eq);
+		lua_setfield(L, -2, "__eq");
 		lua_pushcfunction(L, luacs_enumvalue__tostring);
 		lua_setfield(L, -2, "__tostring");
 		lua_pushcfunction(L, luacs_enumvalue_tointeger);
@@ -1783,6 +1789,54 @@ luacs_enumvalue__gc(lua_State *L)
 	luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 
 	return (0);
+}
+
+int
+luacs_enumvalue__eq(lua_State *L)
+{
+	struct luacenum_value	*val1, *val2;
+	intmax_t		 ival1, ival2;
+
+	lua_settop(L, 2);
+	val1 = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	ival1 = val1->value;
+
+	if (lua_isnumber(L, 2))
+		ival2 = lua_tointeger(L, 2);
+	else {
+		val2 = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
+		ival2 = val2->value;
+	}
+	if (ival1 == ival2)
+		lua_pushboolean(L, 1);
+	else
+		lua_pushboolean(L, 0);
+
+	return (1);
+}
+
+int
+luacs_enumvalue__lt(lua_State *L)
+{
+	struct luacenum_value	*val1, *val2;
+	intmax_t		 ival1, ival2;
+
+	lua_settop(L, 2);
+	val1 = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	ival1 = val1->value;
+
+	if (lua_isnumber(L, 2))
+		ival2 = lua_tointeger(L, 2);
+	else {
+		val2 = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
+		ival2 = val2->value;
+	}
+	if (ival1 < ival2)
+		lua_pushboolean(L, 1);
+	else
+		lua_pushboolean(L, 0);
+
+	return (1);
 }
 
 int
