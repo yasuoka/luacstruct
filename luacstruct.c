@@ -108,6 +108,7 @@ struct luacstruct_field {
 	enum luacstruct_type		 type;
 	const char			*fieldname;
 	struct luacregeon		 regeon;
+	int				 constval;
 	int				 nmemb;
 	unsigned			 flags;
 	int				 ref;
@@ -392,6 +393,18 @@ luacs_declare_method(lua_State *L, const char *name, int (*func)(lua_State *))
 	field = luacs_declare(L, LUACS_TMETHOD, NULL, name, 0, 0, 0, 0);
 	lua_pushcfunction(L, func);
 	field->ref = luacs_ref(L);
+
+	return (0);
+}
+
+int
+luacs_declare_const(lua_State *L, const char *name, int constval)
+{
+	struct luacstruct_field	 *field;
+
+	field = luacs_declare(L, LUACS_TCONST, NULL, name, 0, 0, 0,
+	    LUACS_FREADONLY);
+	field->constval = constval;
 
 	return (0);
 }
@@ -1141,6 +1154,9 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 		break;
 	case LUACS_TMETHOD:
 		luacs_getref(L, field->ref);
+		break;
+	case LUACS_TCONST:
+		lua_pushinteger(L, field->constval);
 		break;
 	}
 

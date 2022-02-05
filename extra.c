@@ -13,7 +13,7 @@ static int l_test_ext(lua_State *);
 static int l_test_enum(lua_State *);
 static int l_test_copy(lua_State *);
 static int l_test_array(lua_State *);
-static int l_test_tostring(lua_State *);
+static int l_test_tostring_const(lua_State *);
 
 int
 luaopen_extra(lua_State *L)
@@ -24,7 +24,7 @@ luaopen_extra(lua_State *L)
 	lua_register(L, "test_enum", l_test_enum);
 	lua_register(L, "test_copy", l_test_copy);
 	lua_register(L, "test_array", l_test_array);
-	lua_register(L, "test_tostring", l_test_tostring);
+	lua_register(L, "test_tostring_const", l_test_tostring_const);
 	lua_register(L, "typename", luacs_object_typename);
 
 	return (0);
@@ -295,6 +295,9 @@ struct person {
 	const char	*name;
 	int		 height;	/* in cm */
 	int		 weight;	/* in kg */
+	int		 country;
+#define	UNITED_STATES	1
+#define	JAPAN		81
 };
 
 static int
@@ -324,12 +327,15 @@ person_tostring(lua_State *L)
 }
 
 int
-l_test_tostring(lua_State *L)
+l_test_tostring_const(lua_State *L)
 {
 	luacs_newstruct(L, person);
 	luacs_strptr_field(L, person, name, 0);
 	luacs_int_field(L, person, height, 0);
 	luacs_int_field(L, person, weight, 0);
+	luacs_int_field(L, person, country, 0);
+	luacs_declare_const(L, "UNITED_STATES", UNITED_STATES);
+	luacs_declare_const(L, "JAPAN", JAPAN);
 
 	luacs_declare_method(L, "bmi", person_bmi);
 	luacs_declare_method(L, "__tostring", person_tostring);

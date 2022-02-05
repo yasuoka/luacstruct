@@ -41,7 +41,8 @@ enum luacstruct_type {
 	LUACS_TOBJENT,
 	LUACS_TEXTREF,
 	LUACS_TARRAY,
-	LUACS_TMETHOD
+	LUACS_TMETHOD,
+	LUACS_TCONST
 };
 
 #define LUACS_FREADONLY	1
@@ -49,6 +50,7 @@ enum luacstruct_type {
 __BEGIN_DECLS
 int	 luacs_newstruct0(lua_State *, const char *, const char *);
 int	 luacs_declare_method(lua_State *, const char *, int (*)(lua_State *));
+int	 luacs_declare_const(lua_State *, const char *, int);
 int	 luacs_delstruct(lua_State *, const char *);
 int	 luacs_declare_field(lua_State *, enum luacstruct_type,
 	    const char *, const char *, size_t, int, int, unsigned);
