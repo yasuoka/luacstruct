@@ -248,6 +248,8 @@ local main = function()
 	assert(tostring(yamada) == "yamada(168,63)")
 	assert(22.0 <= yamada:bmi() and yamada:bmi() < 23.0)
 	assert(typename(yamada) == "person")
+	rv = pcall(function() yamada.bmi = function() return 21 end end)
+	assert(not rv)
 	-- test const
 	yamada.country = yamada.JAPAN
 	assert(yamada.country == 81)

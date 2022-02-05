@@ -390,7 +390,8 @@ luacs_declare_method(lua_State *L, const char *name, int (*func)(lua_State *))
 {
 	struct luacstruct_field	 *field;
 
-	field = luacs_declare(L, LUACS_TMETHOD, NULL, name, 0, 0, 0, 0);
+	field = luacs_declare(L, LUACS_TMETHOD, NULL, name, 0, 0, 0,
+	    LUACS_FREADONLY);
 	lua_pushcfunction(L, func);
 	field->ref = luacs_ref(L);
 
