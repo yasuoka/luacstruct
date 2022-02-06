@@ -430,6 +430,7 @@ luacsfield_copy(lua_State *L, struct luacstruct_field *from)
 	}
 	to->type = from->type;
 	to->regeon = from->regeon;
+	to->constval = from->constval;
 	to->nmemb = from->nmemb;
 	to->flags = from->flags;
 	/* Update refs */
