@@ -1316,9 +1316,17 @@ int
 luacs_object__gc(lua_State *L)
 {
 	struct luacobject	*obj;
+	struct luacstruct_field	 fkey, *field;
 
 	lua_settop(L, 1);
 	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	fkey.fieldname = "__gc";
+	if ((field = SPLAY_FIND(luacstruct_fields, &obj->cs->fields, &fkey))
+	    != NULL && field->type == LUACS_TMETHOD) {
+		luacs_getref(L, field->ref);
+		lua_pushvalue(L, 1);
+		lua_pcall(L, 1, 0, 0);
+	}
 	luacs_unref(L, obj->typref);
 	luacs_unref(L, obj->tblref);
 
