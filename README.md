@@ -121,6 +121,21 @@ yourfunction = function(self)
 end
 ```
 
+In above case, lifetime of the instance in Lua and C will be managed
+separately, but by passing NULL to the ptr argument for
+`luacs_newobject()`, you can leave it in the Lua's garbage collection.
+
+``c
+	struct youapp_type *self;
+	luacs_newobject(L, "youapp_type", NULL);
+	self = luacs_object_pointer(L, -1);
+	return (1);
+	/* "self" will be released along with the lua object */
+```
+
+If you don't pass an instance of the struct when creating an instance,
+an instance will create within a Lua object
+
 As for `pairs()`, `pairs()` will work as it is on Lua 5.2 and later
 since `__pairs()` meta method is provided for objects created by
 `luacs_newobject()`.  For Lua 5.1, you need to override the global

@@ -70,6 +70,9 @@
 #ifndef MINIMUM
 #define MINIMUM(_a, _b)		((_a) < (_b)? (_a) : (_b))
 #endif
+#ifndef MAXIMUM
+#define MAXIMUM(_a, _b)		((_a) > (_b)? (_a) : (_b))
+#endif
 
 #ifndef	nitems
 #define	nitems(_x)		(sizeof(_x) / sizeof((_x)[0]))
@@ -593,9 +596,15 @@ luacs_newarray0(lua_State *L, enum luacstruct_type _type, int typidx,
 
 	absidx = lua_absindex(L, typidx);
 
-	obj = lua_newuserdata(L, sizeof(struct luacobject));
+	if (ptr != NULL) {
+		obj = lua_newuserdata(L, sizeof(struct luacobject));
+		obj->ptr = ptr;
+	} else {
+		obj = lua_newuserdata(L, sizeof(struct luacobject) +
+		    size * nmemb);
+		obj->ptr = (caddr_t)(obj + 1);
+	}
 	obj->type =_type;
-	obj->ptr = ptr;
 	obj->size = size;
 	obj->nmemb = nmemb;
 	obj->flags = flags;
@@ -991,11 +1000,23 @@ luacs_newobject0(lua_State *L, void *ptr)
 {
 	struct luacobject	*obj;
 	struct luacstruct	*cs;
+	struct luacstruct_field	*field;
 	int			 ret;
+	size_t			 objsiz = 0;
 
 	cs = luacs_checkstruct(L, -1);
-	obj = lua_newuserdata(L, sizeof(struct luacobject));
-	obj->ptr = ptr;
+	if (ptr != NULL) {
+		obj = lua_newuserdata(L, sizeof(struct luacobject));
+		obj->ptr = ptr;
+	} else {
+		TAILQ_FOREACH(field, &cs->sorted, queue) {
+			objsiz = MAXIMUM(objsiz, field->regeon.off +
+			    (field->nmemb == 0? 1 : field->nmemb) *
+			    field->regeon.size);
+		}
+		obj = lua_newuserdata(L, sizeof(struct luacobject) + objsiz);
+		obj->ptr = (caddr_t)(obj + 1);
+	}
 	obj->cs = cs;
 	lua_pushvalue(L, -2);
 	obj->typref = luacs_ref(L);
