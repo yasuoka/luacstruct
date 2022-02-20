@@ -984,8 +984,6 @@ luacs_newobject(lua_State *L, const char *tname, void *ptr)
 	int			 ret;
 	char			 metaname[METANAMELEN];
 
-	LUACS_ASSERT(L, ptr != NULL);
-
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
 
