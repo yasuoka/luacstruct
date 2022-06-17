@@ -1040,13 +1040,23 @@ luacs_newobject0(lua_State *L, void *ptr)
 }
 
 void *
-luacs_object_pointer(lua_State *L, int ref)
+luacs_object_pointer(lua_State *L, int ref, const char *typename)
 {
-	struct luacobject	*obj;
+	struct luacobject	*obj = NULL;
 
-	obj = luaL_checkudata(L, ref, METANAME_LUACSTRUCTOBJ);
-	if (obj != NULL)
-		return (obj->ptr);
+	obj = lua_touserdata(L, ref);
+	if (obj != NULL) {
+		if (lua_getmetatable(L, ref)) {
+			lua_getfield(L, LUA_REGISTRYINDEX,
+			    METANAME_LUACSTRUCTOBJ);
+			if (lua_rawequal(L, -1, -2)) {
+				lua_pop(L, 2);
+				if (typename == NULL ||
+				    strcmp(obj->cs->typename, typename) == 0)
+					return (obj->ptr);
+			}
+		}
+	}
 
 	return (NULL);
 }
