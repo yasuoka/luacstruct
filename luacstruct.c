@@ -105,6 +105,7 @@ struct luacregeon {
 	int				 off;
 	size_t				 size;
 	int				 typref;
+	unsigned			 flags;
 };
 
 struct luacstruct_field {
@@ -353,6 +354,7 @@ luacs_declare(lua_State *L, enum luacstruct_type _type,
 	field->regeon.type = _type;
 	field->regeon.off = off;
 	field->regeon.size = siz;
+	field->regeon.flags = flags;
 	field->nmemb = nmemb;
 	field->flags = flags;
 	switch (_type) {
@@ -1380,30 +1382,69 @@ int
 luacs_pushregeon(lua_State *L, struct luacobject *obj,
     struct luacregeon *regeon)
 {
+	intmax_t	 ival;
+	uintmax_t	 uval;
+
 	switch (regeon->type) {
 	case LUACS_TINT8:
 		lua_pushinteger(L, *(int8_t *)(obj->ptr + regeon->off));
 		break;
 	case LUACS_TINT16:
-		lua_pushinteger(L, *(int16_t *)(obj->ptr + regeon->off));
+		ival = *(int16_t *)(obj->ptr + regeon->off);
+		if ((regeon->flags & LUACS_FENDIAN) == 0)
+			lua_pushinteger(L, ival);
+		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			lua_pushinteger(L, betoh16(ival));
+		else
+			lua_pushinteger(L, letoh16(ival));
 		break;
 	case LUACS_TINT32:
-		lua_pushinteger(L, *(int32_t *)(obj->ptr + regeon->off));
+		ival = *(int32_t *)(obj->ptr + regeon->off);
+		if ((regeon->flags & LUACS_FENDIAN) == 0)
+			lua_pushinteger(L, ival);
+		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			lua_pushinteger(L, betoh32(ival));
+		else
+			lua_pushinteger(L, letoh32(ival));
 		break;
 	case LUACS_TINT64:
-		lua_pushinteger(L, *(int64_t *)(obj->ptr + regeon->off));
+		ival = *(int64_t *)(obj->ptr + regeon->off);
+		if ((regeon->flags & LUACS_FENDIAN) == 0)
+			lua_pushinteger(L, ival);
+		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			lua_pushinteger(L, betoh64(ival));
+		else
+			lua_pushinteger(L, letoh64(ival));
 		break;
 	case LUACS_TUINT8:
 		lua_pushinteger(L, *(uint8_t *)(obj->ptr + regeon->off));
 		break;
 	case LUACS_TUINT16:
-		lua_pushinteger(L, *(uint16_t *)(obj->ptr + regeon->off));
+		uval = *(uint16_t *)(obj->ptr + regeon->off);
+		if ((regeon->flags & LUACS_FENDIAN) == 0)
+			lua_pushinteger(L, uval);
+		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			lua_pushinteger(L, betoh16(uval));
+		else
+			lua_pushinteger(L, letoh16(uval));
 		break;
 	case LUACS_TUINT32:
-		lua_pushinteger(L, *(uint32_t *)(obj->ptr + regeon->off));
+		uval = *(uint32_t *)(obj->ptr + regeon->off);
+		if ((regeon->flags & LUACS_FENDIAN) == 0)
+			lua_pushinteger(L, uval);
+		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			lua_pushinteger(L, betoh32(uval));
+		else
+			lua_pushinteger(L, letoh32(uval));
 		break;
 	case LUACS_TUINT64:
-		lua_pushinteger(L, *(uint64_t *)(obj->ptr + regeon->off));
+		uval = *(uint64_t *)(obj->ptr + regeon->off);
+		if ((regeon->flags & LUACS_FENDIAN) == 0)
+			lua_pushinteger(L, uval);
+		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			lua_pushinteger(L, betoh64(uval));
+		else
+			lua_pushinteger(L, letoh64(uval));
 		break;
 	case LUACS_TBOOL:
 		lua_pushboolean(L, *(bool *)(obj->ptr + regeon->off));
@@ -1454,8 +1495,10 @@ void
 luacs_pullregeon(lua_State *L, struct luacobject *obj,
     struct luacregeon *regeon, int idx)
 {
-	size_t	 siz;
-	int	 absidx;
+	size_t		 siz;
+	int		 absidx;
+	intmax_t	 ival;
+	uintmax_t	 uval;
 
 	absidx = lua_absindex(L, idx);
 
@@ -1467,27 +1510,52 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 		*(uint8_t *)(obj->ptr + regeon->off) = lua_tointeger(L, absidx);
 		break;
 	case LUACS_TINT16:
-		*(int16_t *)(obj->ptr + regeon->off) = lua_tointeger(L, absidx);
+		ival = lua_tointeger(L, absidx);
+		if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			ival = htobe16(ival);
+		else if ((regeon->flags & LUACS_FENDIANLITTLE) != 0)
+			ival = htole16(ival);
+		*(int16_t *)(obj->ptr + regeon->off) = ival;
 		break;
 	case LUACS_TUINT16:
-		*(uint16_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
-		    absidx);
+		uval = lua_tointeger(L, absidx);
+		if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			uval = htobe16(uval);
+		else if ((regeon->flags & LUACS_FENDIANLITTLE) != 0)
+			uval = htole16(uval);
+		*(uint16_t *)(obj->ptr + regeon->off) = uval;
 		break;
 	case LUACS_TINT32:
-		*(int32_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
-		    absidx);
+		ival = lua_tointeger(L, absidx);
+		if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			ival = htobe32(ival);
+		else if ((regeon->flags & LUACS_FENDIANLITTLE) != 0)
+			ival = htole32(ival);
+		*(int32_t *)(obj->ptr + regeon->off) = ival;
 		break;
 	case LUACS_TUINT32:
-		*(uint32_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
-		    absidx);
+		uval = lua_tointeger(L, absidx);
+		if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			uval = htobe32(uval);
+		else if ((regeon->flags & LUACS_FENDIANLITTLE) != 0)
+			uval = htole32(uval);
+		*(uint32_t *)(obj->ptr + regeon->off) = uval;
 		break;
 	case LUACS_TINT64:
-		*(int64_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
-		    absidx);
+		ival = lua_tointeger(L, absidx);
+		if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			ival = htobe64(ival);
+		else if ((regeon->flags & LUACS_FENDIANLITTLE) != 0)
+			ival = htole64(ival);
+		*(int64_t *)(obj->ptr + regeon->off) = ival;
 		break;
 	case LUACS_TUINT64:
-		*(uint16_t *)(obj->ptr + regeon->off) = lua_tointeger(L,
-		    absidx);
+		uval = lua_tointeger(L, absidx);
+		if ((regeon->flags & LUACS_FENDIANBIG) != 0)
+			uval = htobe64(uval);
+		else if ((regeon->flags & LUACS_FENDIANLITTLE) != 0)
+			uval = htole64(uval);
+		*(uint64_t *)(obj->ptr + regeon->off) = uval;
 		break;
 	case LUACS_TBOOL:
 		*(bool *)(obj->ptr + regeon->off) = lua_toboolean(L, absidx);

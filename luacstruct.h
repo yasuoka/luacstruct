@@ -45,7 +45,10 @@ enum luacstruct_type {
 	LUACS_TCONST
 };
 
-#define LUACS_FREADONLY	1
+#define LUACS_FREADONLY		0x01
+#define LUACS_FENDIANBIG	0x02
+#define LUACS_FENDIANLITTLE	0x04
+#define LUACS_FENDIAN		(LUACS_FENDIANBIG | LUACS_FENDIANLITTLE)
 
 __BEGIN_DECLS
 int	 luacs_newstruct0(lua_State *, const char *, const char *);
