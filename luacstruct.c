@@ -176,6 +176,7 @@ static int	 luacs_array__next(lua_State *);
 static int	 luacs_array__pairs(lua_State *);
 static int	 luacs_array__gc(lua_State *);
 static int	 luacs_newobject0(lua_State *, void *);
+static int	 luacs_object__eq(lua_State *);
 static int	 luacs_object__tostring(lua_State *);
 static int	 luacs_object__index(lua_State *);
 static int	 luacs_object__get(lua_State *, struct luacobject *,
@@ -1032,6 +1033,8 @@ luacs_newobject0(lua_State *L, void *ptr)
 		lua_setfield(L, -2, "__gc");
 		lua_pushcfunction(L, luacs_object__tostring);
 		lua_setfield(L, -2, "__tostring");
+		lua_pushcfunction(L, luacs_object__eq);
+		lua_setfield(L, -2, "__eq");
 	}
 	lua_setmetatable(L, -2);
 	lua_newtable(L);
@@ -1061,6 +1064,42 @@ luacs_object_pointer(lua_State *L, int ref, const char *typename)
 	}
 
 	return (NULL);
+}
+
+int
+luacs_object__eq(lua_State *L)
+{
+	struct luacobject	*obja, *objb;
+	void			*ptra, *ptrb;
+
+	lua_settop(L, 2);
+
+	ptra = luacs_object_pointer(L, 1, NULL);
+	ptrb = luacs_object_pointer(L, 2, NULL);
+	if (ptra == NULL || ptrb == NULL) {
+		lua_pushboolean(L, false);
+		return (1);
+	}
+	obja = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	objb = luaL_checkudata(L, 2, METANAME_LUACSTRUCTOBJ);
+	if (ptra == ptrb) {		/* the same pointer */
+		if (obja == objb ||	/* the same type */
+		    strcmp(obja->cs->typename, objb->cs->typename) == 0) {
+			lua_pushboolean(L, true);
+			return (1);
+		}
+	}
+	lua_getfield(L, 1, "__eq");
+	if (lua_isnil(L, -1)) {
+		lua_pop(L, 1);
+		lua_pushboolean(L, false);
+		return (1);
+	}
+	lua_pushvalue(L, 1);
+	lua_pushvalue(L, 2);
+	lua_call(L, 2, 1);
+
+	return (1);
 }
 
 int
