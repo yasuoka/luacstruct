@@ -180,7 +180,7 @@ __END_DECLS
 #define luacs_pseudo_field(_L, _type, _field, _flags)		\
 	do {							\
 		luacs_declare_field((_L), LUACS_TEXTREF, NULL,	\
-		    #_field, 0, INT_MAX, 0, _flags);		\
+		    #_field, 0, 0, 0, _flags);		\
 	} while (0/*CONSTCOND*/)
 
 #define	_nitems(_x)		(sizeof(_x) / sizeof((_x)[0]))
