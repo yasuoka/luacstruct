@@ -1434,27 +1434,27 @@ luacs_pushregeon(lua_State *L, struct luacobject *obj,
 		if ((regeon->flags & LUACS_FENDIAN) == 0)
 			lua_pushinteger(L, ival);
 		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, betoh16(ival));
+			lua_pushinteger(L, be16toh(ival));
 		else
-			lua_pushinteger(L, letoh16(ival));
+			lua_pushinteger(L, le16toh(ival));
 		break;
 	case LUACS_TINT32:
 		ival = *(int32_t *)(obj->ptr + regeon->off);
 		if ((regeon->flags & LUACS_FENDIAN) == 0)
 			lua_pushinteger(L, ival);
 		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, betoh32(ival));
+			lua_pushinteger(L, be32toh(ival));
 		else
-			lua_pushinteger(L, letoh32(ival));
+			lua_pushinteger(L, le32toh(ival));
 		break;
 	case LUACS_TINT64:
 		ival = *(int64_t *)(obj->ptr + regeon->off);
 		if ((regeon->flags & LUACS_FENDIAN) == 0)
 			lua_pushinteger(L, ival);
 		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, betoh64(ival));
+			lua_pushinteger(L, be64toh(ival));
 		else
-			lua_pushinteger(L, letoh64(ival));
+			lua_pushinteger(L, le64toh(ival));
 		break;
 	case LUACS_TUINT8:
 		lua_pushinteger(L, *(uint8_t *)(obj->ptr + regeon->off));
@@ -1464,27 +1464,27 @@ luacs_pushregeon(lua_State *L, struct luacobject *obj,
 		if ((regeon->flags & LUACS_FENDIAN) == 0)
 			lua_pushinteger(L, uval);
 		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, betoh16(uval));
+			lua_pushinteger(L, be16toh(uval));
 		else
-			lua_pushinteger(L, letoh16(uval));
+			lua_pushinteger(L, le16toh(uval));
 		break;
 	case LUACS_TUINT32:
 		uval = *(uint32_t *)(obj->ptr + regeon->off);
 		if ((regeon->flags & LUACS_FENDIAN) == 0)
 			lua_pushinteger(L, uval);
 		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, betoh32(uval));
+			lua_pushinteger(L, be32toh(uval));
 		else
-			lua_pushinteger(L, letoh32(uval));
+			lua_pushinteger(L, le32toh(uval));
 		break;
 	case LUACS_TUINT64:
 		uval = *(uint64_t *)(obj->ptr + regeon->off);
 		if ((regeon->flags & LUACS_FENDIAN) == 0)
 			lua_pushinteger(L, uval);
 		else if ((regeon->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, betoh64(uval));
+			lua_pushinteger(L, be64toh(uval));
 		else
-			lua_pushinteger(L, letoh64(uval));
+			lua_pushinteger(L, le64toh(uval));
 		break;
 	case LUACS_TBOOL:
 		lua_pushboolean(L, *(bool *)(obj->ptr + regeon->off));
