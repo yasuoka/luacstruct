@@ -200,6 +200,7 @@ static int	 luacs_enum__pairs(lua_State *);
 static int	 luacs_enum__next(lua_State *);
 static int	 luacs_enum__gc(lua_State *);
 static int	 luacs_enumvalue_tointeger(lua_State *);
+static int	 luacs_enumvalue_label(lua_State *);
 static int	 luacs_enumvalue__tostring(lua_State *);
 static int	 luacs_enumvalue__gc(lua_State *);
 static int	 luacs_enumvalue__eq(lua_State *);
@@ -1908,6 +1909,8 @@ luacs_enum_declare_value(lua_State *L, const char *label, intmax_t value)
 		lua_setfield(L, -2, "__tostring");
 		lua_pushcfunction(L, luacs_enumvalue_tointeger);
 		lua_setfield(L, -2, "tointeger");
+		lua_pushcfunction(L, luacs_enumvalue_label);
+		lua_setfield(L, -2, "label");
 	}
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
@@ -1925,6 +1928,18 @@ luacs_enumvalue_tointeger(lua_State *L)
 	lua_settop(L, 1);
 	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	lua_pushinteger(L, val->value);
+
+	return (1);
+}
+
+int
+luacs_enumvalue_label(lua_State *L)
+{
+	struct luacenum_value	*val;
+
+	lua_settop(L, 1);
+	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	lua_pushstring(L, val->label);
 
 	return (1);
 }
