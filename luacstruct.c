@@ -741,7 +741,7 @@ luacs_array__index(lua_State *L)
 int
 luacs_array__newindex(lua_State *L)
 {
-	struct luacobject	*obj, *ano;
+	struct luacobject	*obj, *ano = NULL;
 	int			 idx;
 	struct luacregeon	 regeon;
 	struct luacstruct	*cs0;
@@ -777,8 +777,9 @@ readonly:
 		cs0 = luacs_checkstruct(L, -1);
 		lua_pop(L, 1);
 		/* given instance of struct */
-		ano = luaL_checkudata(L, 3, METANAME_LUACSTRUCTOBJ);
-		if (cs0 != ano->cs) {
+		if (regeon.type == LUACS_TOBJENT || !lua_isnil(L, 3))
+			ano = luaL_checkudata(L, 3, METANAME_LUACSTRUCTOBJ);
+		if (ano != NULL && cs0 != ano->cs) {
 			lua_pushfstring(L,
 			    "must be an instance of `struct %s'",
 			    cs0->typename);
@@ -796,7 +797,8 @@ readonly:
 			lua_pushvalue(L, 3);
 			lua_call(L, 2, 0);
 		} else {
-			*(void **)(obj->ptr + regeon.off) = ano->ptr;
+			*(void **)(obj->ptr + regeon.off) = ano? ano->ptr :
+			    NULL;
 			/* use the same object */
 			luacs_getref(L, obj->tblref);
 			lua_pushvalue(L, 3);
@@ -1240,7 +1242,7 @@ int
 luacs_object__newindex(lua_State *L)
 {
 	struct luacstruct	*cs0;
-	struct luacobject	*obj, *ano;
+	struct luacobject	*obj, *ano = NULL;
 	struct luacstruct_field	 fkey, *field;
 
 	lua_settop(L, 3);
@@ -1266,9 +1268,13 @@ readonly:
 			luacs_getref(L, field->regeon.typref);
 			cs0 = luacs_checkstruct(L, -1);
 			lua_pop(L, 1);
+			if (field->regeon.type == LUACS_TOBJENT ||
+			    !lua_isnil(L, 3))
+				/* given instance of struct */
+				ano = luaL_checkudata(L, 3,
+				    METANAME_LUACSTRUCTOBJ);
 			/* given instance of struct */
-			ano = luaL_checkudata(L, 3, METANAME_LUACSTRUCTOBJ);
-			if (cs0 != ano->cs) {
+			if (ano != NULL && cs0 != ano->cs) {
 				lua_pushfstring(L,
 				    "`%s' field must be an instance of "
 				    "`struct %s'", field->fieldname,
@@ -1282,7 +1288,7 @@ readonly:
 				lua_call(L, 2, 0);
 			} else {
 				*(void **)(obj->ptr + field->regeon.off) =
-				    ano->ptr;
+				    ano != NULL? ano->ptr : NULL;
 				/* use the same object */
 				luacs_getref(L, obj->tblref);
 				lua_pushvalue(L, 3);
