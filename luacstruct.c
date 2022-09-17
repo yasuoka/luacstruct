@@ -81,10 +81,12 @@
 #ifndef __unused
 #define __unused       __attribute__((__unused__))
 #endif
+#define	LUACSTRUCT_ABI_VERSION		0x01
 
 struct luacstruct {
 	const char			*typename;
 	char				 metaname[METANAMELEN];
+	int				 abiver;
 	SPLAY_HEAD(luacstruct_fields, luacstruct_field)
 					 fields;
 	TAILQ_HEAD(,luacstruct_field)	 sorted;
@@ -93,6 +95,7 @@ struct luacstruct {
 struct luacarraytype {
 	const char			*typename;
 	char				 metaname[METANAMELEN];
+	int				 abiver;
 	enum luacstruct_type		 type;
 	size_t				 size;
 	int				 nmemb;
@@ -134,6 +137,7 @@ struct luacobject {
 struct luacenum {
 	const char			*enumname;
 	char				 metaname[METANAMELEN];
+	int				 abiver;
 	size_t				 valwidth;
 	SPLAY_HEAD(luacenum_labels, luacenum_value)
 					 labels;
@@ -168,6 +172,8 @@ static int	 luacs_pushctype(lua_State *, enum luacstruct_type,
 		    const char *);
 static int	 luacs_newarray0(lua_State *, enum luacstruct_type, int, size_t,
 		    int, unsigned, void *);
+struct luacarraytype *
+		 luacs_checkcarraytype(lua_State *, int);
 static int	 luacs_array__len(lua_State *);
 static int	 luacs_array__index(lua_State *);
 static int	 luacs_array__newindex(lua_State *);
@@ -176,6 +182,8 @@ static int	 luacs_array__next(lua_State *);
 static int	 luacs_array__pairs(lua_State *);
 static int	 luacs_array__gc(lua_State *);
 static int	 luacs_newobject0(lua_State *, void *);
+static struct luacobject *
+		 luacs_checkcobject(lua_State *, int);
 static int	 luacs_object__eq(lua_State *);
 static int	 luacs_object__tostring(lua_State *);
 static int	 luacs_object__index(lua_State *);
@@ -255,6 +263,7 @@ luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
 	memcpy(cs->metaname, metaname, MINIMUM(sizeof(metaname),
 	    sizeof(cs->metaname)));
+	cs->abiver = LUACSTRUCT_ABI_VERSION;
 
 	cs->typename = index(cs->metaname, '.') + 1;
 	SPLAY_INIT(&cs->fields);
@@ -300,7 +309,13 @@ luacs_delstruct(lua_State *L, const char *tname)
 struct luacstruct *
 luacs_checkstruct(lua_State *L, int csidx)
 {
-	return (luaL_checkudata(L, csidx, METANAME_LUACSTRUCT));
+	struct luacstruct	*ret;
+
+	ret = luaL_checkudata(L, csidx, METANAME_LUACSTRUCT);
+	if (ret != NULL && ret->abiver != LUACSTRUCT_ABI_VERSION)
+		luaL_error(L, "luacstruct warning: combined different version "
+		    "%d != %d\n", ret->abiver, LUACSTRUCT_ABI_VERSION);
+	return (ret);
 }
 
 int
@@ -486,7 +501,7 @@ luacs_pushctype(lua_State *L, enum luacstruct_type _type, const char *tname)
 		lua_error(L);
 	}
 	if (_type == LUACS_TARRAY)
-		luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
+		luacs_checkcarraytype(L, -1);
 	else if (_type == LUACS_TENUM)
 		luacs_checkenum(L, -1);
 	else
@@ -499,7 +514,8 @@ luacs_pushctype(lua_State *L, enum luacstruct_type _type, const char *tname)
 int
 luacs_arraytype__gc(lua_State *L)
 {
-	luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
+	lua_settop(L, 1);
+	luacs_checkcarraytype(L, 1);
 
 	return (0);
 }
@@ -515,7 +531,7 @@ luacs_newarraytype(lua_State *L, const char *tname, enum luacstruct_type _type,
 	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
 	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
 	if (!lua_isnil(L, -1)) {
-		cat = luaL_checkudata(L, -1, METANAME_LUACARRAYTYPE);
+		cat = luacs_checkcarraytype(L, -1);
 		return (1);
 	}
 	lua_pop(L, 1);
@@ -550,6 +566,7 @@ luacs_newarraytype(lua_State *L, const char *tname, enum luacstruct_type _type,
 	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
 	memcpy(cat->metaname, metaname, MINIMUM(sizeof(metaname),
 	    sizeof(cat->metaname)));
+	cat->abiver = LUACSTRUCT_ABI_VERSION;
 
 	cat->typename = index(cat->metaname, '.') + 1;
 	if ((ret = luaL_newmetatable(L, METANAME_LUACARRAYTYPE)) != 0) {
@@ -597,6 +614,7 @@ luacs_newarray0(lua_State *L, enum luacstruct_type _type, int typidx,
 {
 	struct luacobject	*obj;
 	int			 ret, absidx;
+	static struct luacstruct dummycs = { .abiver = LUACSTRUCT_ABI_VERSION };
 
 	absidx = lua_absindex(L, typidx);
 
@@ -608,6 +626,7 @@ luacs_newarray0(lua_State *L, enum luacstruct_type _type, int typidx,
 		    size * nmemb);
 		obj->ptr = (caddr_t)(obj + 1);
 	}
+	obj->cs = &dummycs;
 	obj->type =_type;
 	obj->size = size;
 	obj->nmemb = nmemb;
@@ -641,13 +660,37 @@ luacs_newarray0(lua_State *L, enum luacstruct_type _type, int typidx,
 	return (1);
 }
 
+struct luacarraytype *
+luacs_checkcarraytype(lua_State *L, int idx)
+{
+	struct luacarraytype *ret;
+
+	ret = luaL_checkudata(L, idx, METANAME_LUACARRAYTYPE);
+	if (ret->abiver != LUACSTRUCT_ABI_VERSION)
+		luaL_error(L, "luacstruct warning: combined different version "
+		    "%d != %d\n", ret->abiver, LUACSTRUCT_ABI_VERSION);
+	return (ret);
+}
+
+struct luacobject *
+luacs_checkcarray(lua_State *L, int idx)
+{
+	struct luacobject	*ret;
+
+	ret = luaL_checkudata(L, idx, METANAME_LUACARRAY);
+	if (ret->cs->abiver != LUACSTRUCT_ABI_VERSION)
+		luaL_error(L, "luacstruct warning: combined different version "
+		    "%d != %d\n", ret->cs->abiver, LUACSTRUCT_ABI_VERSION);
+	return (ret);
+}
+
 int
 luacs_array__len(lua_State *L)
 {
 	struct luacobject	*obj;
 
 	lua_settop(L, 1);
-	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	obj = luacs_checkcarray(L, 1);
 	lua_pushinteger(L, obj->nmemb);
 
 	return (1);
@@ -663,7 +706,7 @@ luacs_array__index(lua_State *L)
 	void			*ptr;
 
 	lua_settop(L, 2);
-	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	obj = luacs_checkcarray(L, 1);
 	idx = luaL_checkinteger(L, 2);
 	if (idx < 1 || obj->nmemb < idx) {
 		lua_pushnil(L);
@@ -708,17 +751,16 @@ luacs_array__index(lua_State *L)
 		lua_remove(L, -2);
 		break;
 	case LUACS_TARRAY:
-		ptr = obj->ptr + regeon.off;
-		if (ptr == NULL)
+		if (obj->ptr == NULL)
 			lua_pushnil(L);
 		else {
+			ptr = obj->ptr + regeon.off;
 			luacs_getref(L, obj->tblref);
 			lua_rawgeti(L, -1, idx);
 			if (lua_isnil(L, -1)) {
 				lua_pop(L, 1);
 				luacs_getref(L, obj->typref);
-				cat = luaL_checkudata(L, -1,
-				    METANAME_LUACARRAYTYPE);
+				cat = luacs_checkcarraytype(L, -1);
 				lua_pop(L, 1);
 				if (cat->typref != 0)
 					luacs_getref(L, cat->typref);
@@ -747,7 +789,7 @@ luacs_array__newindex(lua_State *L)
 	struct luacstruct	*cs0;
 
 	lua_settop(L, 3);
-	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	obj = luacs_checkcarray(L, 1);
 	idx = luaL_checkinteger(L, 2);
 	if (idx < 1 || obj->nmemb < idx) { /* out of the range */
 		lua_pushfstring(L, "array index %d out of the range 1:%d",
@@ -779,7 +821,7 @@ readonly:
 		lua_pop(L, 1);
 		/* given instance of struct */
 		if (regeon.type == LUACS_TOBJENT || !lua_isnil(L, 3))
-			ano = luaL_checkudata(L, 3, METANAME_LUACSTRUCTOBJ);
+			ano = luacs_checkcobject(L, 3);
 		if (ano != NULL && cs0 != ano->cs) {
 			lua_pushfstring(L,
 			    "must be an instance of `struct %s'",
@@ -837,8 +879,8 @@ luacs_array_copy(lua_State *L)
 	int			 idx;
 
 	lua_settop(L, 2);
-	l = luaL_checkudata(L, 1, METANAME_LUACARRAY);
-	r = luaL_checkudata(L, 2, METANAME_LUACARRAY);
+	l = luacs_checkcarray(L, 1);
+	r = luacs_checkcarray(L, 2);
 
 	if (l->type != r->type) {
 		lua_pushliteral(L,
@@ -941,7 +983,7 @@ luacs_array__next(lua_State *L)
 	int			 idx = 0;
 
 	lua_settop(L, 2);
-	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	obj = luacs_checkcarray(L, 1);
 	if (!lua_isnil(L, 2))
 		idx = luaL_checkinteger(L, 2);
 
@@ -962,7 +1004,7 @@ int
 luacs_array__pairs(lua_State *L)
 {
 	lua_settop(L, 1);
-	luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	luacs_checkcarray(L, 1);
 
 	lua_pushvalue(L, lua_upvalueindex(1));
 	lua_pushvalue(L, 1);
@@ -977,7 +1019,7 @@ luacs_array__gc(lua_State *L)
 	struct luacobject	*obj;
 
 	lua_settop(L, 1);
-	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
+	obj = luacs_checkcarray(L, 1);
 	if (obj->typref != 0)
 		luacs_unref(L, obj->typref);
 
@@ -1048,6 +1090,18 @@ luacs_newobject0(lua_State *L, void *ptr)
 	return (1);
 }
 
+struct luacobject *
+luacs_checkcobject(lua_State *L, int idx)
+{
+	struct luacobject	*ret;
+
+	ret = luaL_checkudata(L, idx, METANAME_LUACSTRUCTOBJ);
+	if (ret->cs->abiver != LUACSTRUCT_ABI_VERSION)
+		luaL_error(L, "luacstruct warning: combined different version "
+		    "%d != %d\n", ret->cs->abiver, LUACSTRUCT_ABI_VERSION);
+	return (ret);
+}
+
 void *
 luacs_object_pointer(lua_State *L, int ref, const char *typename)
 {
@@ -1055,6 +1109,10 @@ luacs_object_pointer(lua_State *L, int ref, const char *typename)
 
 	obj = lua_touserdata(L, ref);
 	if (obj != NULL) {
+		if (obj->cs->abiver != LUACSTRUCT_ABI_VERSION)
+			luaL_error(L, "luacstruct warning: combined different "
+			    "version %d != %d\n", obj->cs->abiver,
+			    LUACSTRUCT_ABI_VERSION);
 		if (lua_getmetatable(L, ref)) {
 			lua_getfield(L, LUA_REGISTRYINDEX,
 			    METANAME_LUACSTRUCTOBJ);
@@ -1084,8 +1142,8 @@ luacs_object__eq(lua_State *L)
 		lua_pushboolean(L, false);
 		return (1);
 	}
-	obja = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
-	objb = luaL_checkudata(L, 2, METANAME_LUACSTRUCTOBJ);
+	obja = luacs_checkcobject(L, 1);
+	objb = luacs_checkcobject(L, 2);
 	if (ptra == ptrb) {		/* the same pointer */
 		if (obja == objb ||	/* the same type */
 		    strcmp(obja->cs->typename, objb->cs->typename) == 0) {
@@ -1113,7 +1171,7 @@ luacs_object__tostring(lua_State *L)
 	char			 buf[BUFSIZ];
 
 	lua_settop(L, 1);
-	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	obj = luacs_checkcobject(L, 1);
 
 	lua_getfield(L, 1, "__tostring");
 	if (!lua_isnil(L, -1)) {
@@ -1134,7 +1192,7 @@ luacs_object_typename(lua_State *L)
 	struct luacobject	*obj;
 
 	lua_settop(L, 1);
-	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	obj = luacs_checkcobject(L, 1);
 	lua_pushstring(L, obj->cs->typename);
 
 	return (1);
@@ -1147,7 +1205,7 @@ luacs_object__index(lua_State *L)
 	struct luacstruct_field	 fkey, *field;
 
 	lua_settop(L, 2);
-	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	obj = luacs_checkcobject(L, 1);
 	fkey.fieldname = luaL_checkstring(L, 2);
 	if ((field = SPLAY_FIND(luacstruct_fields, &obj->cs->fields, &fkey))
 	    != NULL)
@@ -1182,8 +1240,7 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 			if (lua_isnil(L, -1))
 				lua_pop(L, 1);
 			else {	/* has a cache */
-				cache = luaL_checkudata(L, -1,
-				    METANAME_LUACSTRUCTOBJ);
+				cache = luacs_checkcobject(L, -1);
 				/* cached reference may be staled */
 				if (field->type == LUACS_TOBJREF &&
 				    cache->ptr !=
@@ -1247,7 +1304,7 @@ luacs_object__newindex(lua_State *L)
 	struct luacstruct_field	 fkey, *field;
 
 	lua_settop(L, 3);
-	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	obj = luacs_checkcobject(L, 1);
 	fkey.fieldname = luaL_checkstring(L, 2);
 	if ((field = SPLAY_FIND(luacstruct_fields, &obj->cs->fields, &fkey))
 	    != NULL) {
@@ -1272,8 +1329,7 @@ readonly:
 			if (field->regeon.type == LUACS_TOBJENT ||
 			    !lua_isnil(L, 3))
 				/* given instance of struct */
-				ano = luaL_checkudata(L, 3,
-				    METANAME_LUACSTRUCTOBJ);
+				ano = luacs_checkcobject(L, 3);
 			/* given instance of struct */
 			if (ano != NULL && cs0 != ano->cs) {
 				lua_pushfstring(L,
@@ -1326,8 +1382,8 @@ luacs_object_copy(lua_State *L)
 	struct luacstruct_field	*field;
 
 	lua_settop(L, 2);
-	l = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
-	r = luaL_checkudata(L, 2, METANAME_LUACSTRUCTOBJ);
+	l = luacs_checkcobject(L, 1);
+	r = luacs_checkcobject(L, 2);
 	if (l->cs != r->cs) {
 		lua_pushfstring(L,
 		    "copying from `struct %s' instance to `struct %s' "
@@ -1360,7 +1416,7 @@ luacs_object__next(lua_State *L)
 	struct luacstruct_field	*field, fkey;
 
 	lua_settop(L, 2);
-	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	obj = luacs_checkcobject(L, 1);
 	if (lua_isnil(L, 2))
 		field = TAILQ_FIRST(&obj->cs->sorted);
 	else {
@@ -1397,7 +1453,7 @@ luacs_object__gc(lua_State *L)
 	struct luacstruct_field	 fkey, *field;
 
 	lua_settop(L, 1);
-	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	obj = luacs_checkcobject(L, 1);
 	fkey.fieldname = "__gc";
 	if ((field = SPLAY_FIND(luacstruct_fields, &obj->cs->fields, &fkey))
 	    != NULL && field->type == LUACS_TMETHOD) {
@@ -1416,7 +1472,7 @@ luacs_checkobject(lua_State *L, int idx, const char *typename)
 {
 	struct luacobject	*obj;
 
-	obj = luaL_checkudata(L, idx, METANAME_LUACSTRUCTOBJ);
+	obj = luacs_checkcobject(L, idx);
 	if (strcmp(obj->cs->typename, typename) != 0)
 		luaL_error(L, "%s expected, got %s", typename,
 		    obj->cs->typename);
@@ -1694,6 +1750,7 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
 	memcpy(ce->metaname, metaname, MINIMUM(sizeof(metaname),
 	    sizeof(ce->metaname)));
+	ce->abiver = LUACSTRUCT_ABI_VERSION;
 
 	ce->valwidth = valwidth;
 	ce->enumname = index(ce->metaname, '.') + 1;
@@ -1735,9 +1792,26 @@ luacs_delenum(lua_State *L, const char *ename)
 struct luacenum *
 luacs_checkenum(lua_State *L, int ceidx)
 {
-	return (luaL_checkudata(L, ceidx, METANAME_LUACSENUM));
+	struct luacenum		*ret;
+
+	ret = luaL_checkudata(L, ceidx, METANAME_LUACSENUM);
+	if (ret != NULL && ret->abiver != LUACSTRUCT_ABI_VERSION)
+		luaL_error(L, "luacstruct warning: combined different version "
+		    "%d != %d\n", ret->abiver, LUACSTRUCT_ABI_VERSION);
+	return (ret);
 }
 
+struct luacenum_value *
+luacs_checkenum_value(lua_State *L, int ceidx)
+{
+	struct luacenum_value	*ret;
+
+	ret = luaL_checkudata(L, ceidx, METANAME_LUACSENUMVAL);
+	if (ret != NULL && ret->ce->abiver != LUACSTRUCT_ABI_VERSION)
+		luaL_error(L, "luacstruct warning: combined different version "
+		    "%d != %d\n", ret->ce->abiver, LUACSTRUCT_ABI_VERSION);
+	return (ret);
+}
 
 struct luacenum_value *
 luacs_enum_get0(struct luacenum *ce, intmax_t value)
@@ -1797,7 +1871,7 @@ luacs_enum_memberof(lua_State *L)
 
 	lua_settop(L, 1);
 	ce = luacs_checkenum(L, lua_upvalueindex(1));
-	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	val = luacs_checkenum_value(L, 1);
 	val1 = luacs_enum_get0(ce, val->value);
 	lua_pushboolean(L, val1 != NULL && val1 == val);
 
@@ -1933,7 +2007,7 @@ luacs_enumvalue_tointeger(lua_State *L)
 	struct luacenum_value	*val;
 
 	lua_settop(L, 1);
-	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	val = luacs_checkenum_value(L, 1);
 	lua_pushinteger(L, val->value);
 
 	return (1);
@@ -1945,7 +2019,7 @@ luacs_enumvalue_label(lua_State *L)
 	struct luacenum_value	*val;
 
 	lua_settop(L, 1);
-	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	val = luacs_checkenum_value(L, 1);
 	lua_pushstring(L, val->label);
 
 	return (1);
@@ -1958,7 +2032,7 @@ luacs_enumvalue__tostring(lua_State *L)
 	char			 buf[128];
 
 	lua_settop(L, 1);
-	val = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	val = luacs_checkenum_value(L, 1);
 	/* Lua supports limitted int width for number2tstr */
 	snprintf(buf, sizeof(buf), "%jd", val->value);
 	lua_pushfstring(L, "%s(%s)", val->label, buf);
@@ -1970,7 +2044,7 @@ int
 luacs_enumvalue__gc(lua_State *L)
 {
 	lua_settop(L, 1);
-	luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	luacs_checkenum_value(L, 1);
 
 	return (0);
 }
@@ -1982,13 +2056,13 @@ luacs_enumvalue__eq(lua_State *L)
 	intmax_t		 ival1, ival2;
 
 	lua_settop(L, 2);
-	val1 = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	val1 = luacs_checkenum_value(L, 1);
 	ival1 = val1->value;
 
 	if (lua_isnumber(L, 2))
 		ival2 = lua_tointeger(L, 2);
 	else {
-		val2 = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
+		val2 = luacs_checkenum_value(L, 2);
 		ival2 = val2->value;
 	}
 	if (ival1 == ival2)
@@ -2006,13 +2080,13 @@ luacs_enumvalue__lt(lua_State *L)
 	intmax_t		 ival1, ival2;
 
 	lua_settop(L, 2);
-	val1 = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
+	val1 = luacs_checkenum_value(L, 1);
 	ival1 = val1->value;
 
 	if (lua_isnumber(L, 2))
 		ival2 = lua_tointeger(L, 2);
 	else {
-		val2 = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
+		val2 = luacs_checkenum_value(L, 2);
 		ival2 = val2->value;
 	}
 	if (ival1 < ival2)
