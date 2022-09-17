@@ -758,6 +758,7 @@ luacs_array__newindex(lua_State *L)
 	regeon.off = (idx - 1) * obj->size;
 	regeon.size = obj->size;
 	regeon.typref = obj->typref;
+	regeon.flags = obj->flags;
 
 	if ((obj->flags & LUACS_FREADONLY) != 0) {
 readonly:
