@@ -178,6 +178,9 @@ static int	 luacs_array__next(lua_State *);
 static int	 luacs_array__pairs(lua_State *);
 static int	 luacs_array__gc(lua_State *);
 static int	 luacs_newobject0(lua_State *, void *);
+static int	 luacs_object__luacstructdump(struct lua_State *);
+struct luacobj_compat;
+static void	 luacs_object_compat(lua_State *, int, struct luacobj_compat *);
 static int	 luacs_object__eq(lua_State *);
 static int	 luacs_object__tostring(lua_State *);
 static int	 luacs_object__index(lua_State *);
@@ -1041,6 +1044,8 @@ luacs_newobject0(lua_State *L, void *ptr)
 		lua_setfield(L, -2, "__tostring");
 		lua_pushcfunction(L, luacs_object__eq);
 		lua_setfield(L, -2, "__eq");
+		lua_pushcfunction(L, luacs_object__luacstructdump);
+		lua_setfield(L, -2, "__luacstructdump");
 	}
 	lua_setmetatable(L, -2);
 	lua_newtable(L);
@@ -1050,26 +1055,54 @@ luacs_newobject0(lua_State *L, void *ptr)
 	return (1);
 }
 
+int
+luacs_object__luacstructdump(struct lua_State *L)
+{
+	struct luacobject	*obj;
+
+	lua_settop(L, 1);
+	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
+	lua_pushlightuserdata(L, obj->ptr);
+	lua_pushstring(L, obj->cs->typename);
+
+	return (2);
+}
+
+struct luacobj_compat {
+	void		*ptr;
+	const char	*typ;
+};
+
 void *
 luacs_object_pointer(lua_State *L, int ref, const char *typename)
 {
-	struct luacobject	*obj = NULL;
+	struct luacobj_compat	compat;
 
-	obj = lua_touserdata(L, ref);
-	if (obj != NULL) {
-		if (lua_getmetatable(L, ref)) {
-			lua_getfield(L, LUA_REGISTRYINDEX,
-			    METANAME_LUACSTRUCTOBJ);
-			if (lua_rawequal(L, -1, -2)) {
-				lua_pop(L, 2);
-				if (typename == NULL ||
-				    strcmp(obj->cs->typename, typename) == 0)
-					return (obj->ptr);
-			}
-		}
-	}
+	memset(&compat, 0, sizeof(compat));
+	luacs_object_compat(L, ref, &compat);
+	if (typename == NULL || (compat.typ != NULL && strcmp(compat.typ,
+	    typename) == 0))
+		return (compat.ptr);
 
 	return (NULL);
+}
+
+void
+luacs_object_compat(lua_State *L, int ref, struct luacobj_compat *compat)
+{
+	lua_pushvalue(L, ref);
+	if (lua_getmetatable(L, -1)) {
+		lua_getfield(L, -1, "__luacstructdump");
+		if (!lua_isnil(L, -1)) {
+			lua_pushvalue(L, -3);
+			lua_call(L, 1, 2);
+			compat->typ = lua_tostring(L, -1);
+			compat->ptr = lua_touserdata(L, -2);
+			lua_pop(L, 2);
+		}
+		lua_pop(L, 1);
+	}
+	lua_pop(L, 1);
 }
 
 int
@@ -1133,11 +1166,15 @@ luacs_object__tostring(lua_State *L)
 int
 luacs_object_typename(lua_State *L)
 {
-	struct luacobject	*obj;
+	struct luacobj_compat	 compat;
 
+	memset(&compat, 0, sizeof(compat));
 	lua_settop(L, 1);
-	obj = luaL_checkudata(L, 1, METANAME_LUACSTRUCTOBJ);
-	lua_pushstring(L, obj->cs->typename);
+	luacs_object_compat(L, 1, &compat);
+	if (compat.typ != NULL)
+		lua_pushstring(L, compat.typ);
+	else
+		lua_pushnil(L);
 
 	return (1);
 }
@@ -1416,14 +1453,19 @@ luacs_object__gc(lua_State *L)
 void *
 luacs_checkobject(lua_State *L, int idx, const char *typename)
 {
-	struct luacobject	*obj;
+	struct luacobj_compat	 compat;
 
-	obj = luaL_checkudata(L, idx, METANAME_LUACSTRUCTOBJ);
-	if (strcmp(obj->cs->typename, typename) != 0)
-		luaL_error(L, "%s expected, got %s", typename,
-		    obj->cs->typename);
+	memset(&compat, 0, sizeof(compat));
+	luacs_object_compat(L, idx, &compat);
 
-	return (obj->ptr);
+	if (compat.typ != NULL && strcmp(compat.typ, typename) == 0)
+		return (compat.ptr);
+
+	luaL_error(L, "%s expected, got %s",
+	    typename, (compat.typ != NULL)? compat.typ : luaL_typename(L, idx));
+	/* NOTREACHED */
+	LUACS_ASSERT(L, 0);
+	abort();
 }
 
 /* regeon */
