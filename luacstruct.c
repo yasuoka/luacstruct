@@ -30,14 +30,16 @@
 
 #include "luacstruct.h"
 
+#define LUACS_VERSION		"1"
+
 #define	METANAMELEN		80
-#define	METANAME_LUACSTRUCT	"luacstruct"
-#define	METANAME_LUACSENUM	"luacenum"
-#define	METANAME_LUACTYPE	"luactype."	/* type registry name prefix */
-#define	METANAME_LUACARRAY	"luacarray"
-#define	METANAME_LUACARRAYTYPE	"luacarraytype"
-#define	METANAME_LUACSTRUCTOBJ	"luacstructobj"
-#define	METANAME_LUACSENUMVAL	"luacenumval"
+#define	METANAME_LUACSTRUCT	"luacstruct" LUACS_VERSION
+#define	METANAME_LUACSENUM	"luacenum" LUACS_VERSION
+#define	METANAME_LUACTYPE	"luactype" LUACS_VERSION "."
+#define	METANAME_LUACARRAY	"luacarray" LUACS_VERSION
+#define	METANAME_LUACARRAYTYPE	"luacarraytype" LUACS_VERSION
+#define	METANAME_LUACSTRUCTOBJ	"luacstructobj" LUACS_VERSION
+#define	METANAME_LUACSENUMVAL	"luacenumval" LUACS_VERSION
 
 #define	LUACS_REGISTRY_NAME	"luacstruct_registry"
 
