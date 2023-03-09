@@ -16,7 +16,6 @@
 #ifndef LUACSTRUCT_H
 #define LUACSTRUCT_H 1
 
-#include <sys/cdefs.h>
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -50,7 +49,10 @@ enum luacstruct_type {
 #define LUACS_FENDIANLITTLE	0x04
 #define LUACS_FENDIAN		(LUACS_FENDIANBIG | LUACS_FENDIANLITTLE)
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int	 luacs_newstruct0(lua_State *, const char *, const char *);
 int	 luacs_declare_method(lua_State *, const char *, int (*)(lua_State *));
 int	 luacs_declare_const(lua_State *, const char *, int);
@@ -70,7 +72,10 @@ int	 luacs_newarray(lua_State *, enum luacstruct_type, const char *,
 	    size_t, int, unsigned, void *);
 int	 luacs_newarraytype(lua_State *, const char *, enum luacstruct_type,
 	    const char *, size_t, int, unsigned);
-__END_DECLS
+
+#ifdef __cplusplus
+}
+#endif
 
 #define luacs_newstruct(_L, _typename)				\
 	do {							\
