@@ -134,9 +134,6 @@ Lua's garbage collection by passing NULL to the ptr argment for
 	/* "self" will be released along with the lua object */
 ```
 
-If you don't pass an instance of the struct when creating an instance,
-an instance will create within a Lua object
-
 As for `pairs()`, `pairs()` will work as it is on Lua 5.2 and later
 since `__pairs()` meta method is provided for objects created by
 `luacs_newobject()`.  For Lua 5.1, you need to override the global
