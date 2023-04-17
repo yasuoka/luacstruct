@@ -125,7 +125,7 @@ In above case, lifetime of the instance in Lua and C will be managed
 separately, but by passing NULL to the ptr argument for
 `luacs_newobject()`, you can leave it in the Lua's garbage collection.
 
-``c
+```c
 	struct youapp_type *self;
 	luacs_newobject(L, "youapp_type", NULL);
 	self = luacs_object_pointer(L, -1);
