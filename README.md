@@ -122,8 +122,9 @@ end
 ```
 
 In above case, lifetime of the instance in Lua and C will be managed
-separately, but by passing NULL to the ptr argument for
-`luacs_newobject()`, you can leave it in the Lua's garbage collection.
+separately.  You can also create an object which will be freed in the
+Lua's garbage collection by passing NULL to the ptr argment for
+`luacs_newobject()`.
 
 ```c
 	struct youapp_type *self;
@@ -166,7 +167,7 @@ end
  * }
  */
 
-// create a new luacstruct for "struct yourapp_type"
+// create a new luacenum for "enum yourapp_color"
 luacs_newenum(L, yourapp_color);	      // don't surround ".."
 
 luacs_enum_declare_value(L, "RED",   YOURAPP_RED);
