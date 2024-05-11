@@ -1,8 +1,8 @@
 CC?=		cc
 CFLAGS=		-O0 -g -Wall -Wextra
 LUA?=		lua51
-LUA_CFLAGS!!=	pkg-config --cflags ${LUA}
-LUA_LDADD!!=	pkg-config --libs ${LUA}
+LUA_CFLAGS!=	pkg-config --cflags ${LUA}
+LUA_LDADD!=	pkg-config --libs ${LUA}
 LUACS_SRCS=	luacstruct.c
 
 CFLAGS+=	--shared -fPIC -DLUACS_DEBUG
@@ -20,4 +20,3 @@ clean:
 
 test: all
 	${LUA} extra_test.lua
-
