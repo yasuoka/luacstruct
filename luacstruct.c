@@ -30,7 +30,7 @@
 
 #include "luacstruct.h"
 
-#define LUACS_VERSION		"1"
+#define LUACS_VERSION		"2"
 
 #define	METANAMELEN		80
 #define	METANAME_LUACSTRUCT	"luacstruct" LUACS_VERSION
@@ -40,6 +40,7 @@
 #define	METANAME_LUACARRAYTYPE	"luacarraytype" LUACS_VERSION
 #define	METANAME_LUACSTRUCTOBJ	"luacstructobj" LUACS_VERSION
 #define	METANAME_LUACSENUMVAL	"luacenumval" LUACS_VERSION
+#define	METANAME_LUACSUSERTABLE	"luacusertable" LUACS_VERSION
 
 #define	LUACS_REGISTRY_NAME	"luacstruct_registry"
 
@@ -129,7 +130,6 @@ struct luacobject {
 	size_t				 size;
 	int				 nmemb;
 	int				 typref;
-	int				 tblref;	/* cache of members */
 	unsigned			 flags;
 };
 
@@ -154,8 +154,10 @@ struct luacenum_value {
 	SPLAY_ENTRY(luacenum_value)	 treev;
 };
 
+static int luacs_usertable(lua_State *, int);
 static struct luacstruct
 		*luacs_checkstruct(lua_State *, int);
+static int	 luacs_usertable(lua_State *, int);
 static int	 luacs_struct__gc(lua_State *);
 static struct luacstruct_field
 		*luacs_declare(lua_State *, enum luacstruct_type, const char *,
@@ -306,6 +308,40 @@ struct luacstruct *
 luacs_checkstruct(lua_State *L, int csidx)
 {
 	return (luaL_checkudata(L, csidx, METANAME_LUACSTRUCT));
+}
+
+int
+luacs_usertable(lua_State *L, int idx)
+{
+	int	 absidx;
+
+	absidx = lua_absindex(L, idx);
+
+	lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
+	if (lua_isnil(L, -1)) {
+		/* Create a weak table */
+		lua_pop(L, 1);
+		lua_newtable(L);
+		lua_newtable(L);
+		lua_pushstring(L, "k");
+		lua_setfield(L, -2, "__mode");
+		lua_setmetatable(L, -2);
+		lua_setfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
+		lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
+	}
+	lua_pushvalue(L, absidx);
+	lua_gettable(L, -2);
+	if (lua_isnil(L, -1)) {
+		/* Create a new table which is weakly refered by the userdata */
+		lua_pop(L, 1);
+		lua_newtable(L);
+		lua_pushvalue(L, absidx);
+		lua_pushvalue(L, -2);
+		lua_settable(L, -4);
+	}
+	lua_remove(L, -2);
+
+	return (1);
 }
 
 int
@@ -623,11 +659,6 @@ luacs_newarray0(lua_State *L, enum luacstruct_type _type, int typidx,
 		obj->typref = luacs_ref(L);
 	}
 
-	if (_type == LUACS_TOBJREF || _type == LUACS_TOBJENT ||
-	    _type == LUACS_TEXTREF || _type == LUACS_TARRAY) {
-		lua_newtable(L);
-		obj->tblref = luacs_ref(L);
-	}
 	if ((ret = luaL_newmetatable(L, METANAME_LUACARRAY)) != 0) {
 		lua_pushcfunction(L, luacs_array__len);
 		lua_setfield(L, -2, "__len");
@@ -694,7 +725,7 @@ luacs_array__index(lua_State *L)
 		if (ptr == NULL)
 			lua_pushnil(L);
 		else {
-			luacs_getref(L, obj->tblref);
+			luacs_usertable(L, 1);
 			lua_rawgeti(L, -1, idx);
 			if (lua_isnil(L, -1)) {
 				lua_pop(L, 1);
@@ -708,7 +739,7 @@ luacs_array__index(lua_State *L)
 		}
 		break;
 	case LUACS_TEXTREF:
-		luacs_getref(L, obj->tblref);
+		luacs_usertable(L, 1);
 		lua_rawgeti(L, -1, idx);
 		lua_remove(L, -2);
 		break;
@@ -717,7 +748,7 @@ luacs_array__index(lua_State *L)
 		if (ptr == NULL)
 			lua_pushnil(L);
 		else {
-			luacs_getref(L, obj->tblref);
+			luacs_usertable(L, 1);
 			lua_rawgeti(L, -1, idx);
 			if (lua_isnil(L, -1)) {
 				lua_pop(L, 1);
@@ -806,14 +837,14 @@ readonly:
 			*(void **)(obj->ptr + regeon.off) = ano? ano->ptr :
 			    NULL;
 			/* use the same object */
-			luacs_getref(L, obj->tblref);
+			luacs_usertable(L, 1);
 			lua_pushvalue(L, 3);
 			lua_rawseti(L, -2, idx);
 			lua_pop(L, 1);
 		}
 		break;
 	case LUACS_TEXTREF:
-		luacs_getref(L, obj->tblref);
+		luacs_usertable(L, 1);
 		lua_pushvalue(L, 3);
 		lua_rawseti(L, -2, idx);
 		lua_pop(L, 1);
@@ -873,7 +904,7 @@ luacs_array_copy(lua_State *L)
 		}
 		break;
 	case LUACS_TOBJREF:
-		luacs_getref(L, l->tblref);
+		luacs_usertable(L, 1);
 		for (idx = 1; idx <= l->nmemb; idx++) {
 			/* use the same pointer */
 			*(void **)(l->ptr + (idx - 1) * l->size) =
@@ -906,7 +937,7 @@ luacs_array_copy(lua_State *L)
 		}
 		break;
 	case LUACS_TEXTREF:
-		luacs_getref(L, l->tblref);
+		luacs_usertable(L, 1);
 		for (idx = 1; idx <= l->nmemb; idx++) {
 			lua_pushcfunction(L, luacs_array__index);
 			lua_pushvalue(L, 2);
@@ -1048,9 +1079,6 @@ luacs_newobject0(lua_State *L, void *ptr)
 		lua_setfield(L, -2, "__luacstructdump");
 	}
 	lua_setmetatable(L, -2);
-	lua_newtable(L);
-
-	obj->tblref = luacs_ref(L);
 
 	return (1);
 }
@@ -1216,7 +1244,7 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 		else {
 			struct luacobject *cache = NULL;
 
-			luacs_getref(L, obj->tblref);
+			luacs_usertable(L, 1);
 			lua_getfield(L, -1, field->fieldname);
 			if (lua_isnil(L, -1))
 				lua_pop(L, 1);
@@ -1244,13 +1272,13 @@ luacs_object__get(lua_State *L, struct luacobject *obj,
 		}
 		break;
 	case LUACS_TEXTREF:
-		luacs_getref(L, obj->tblref);
+		luacs_usertable(L, 1);
 		lua_getfield(L, -1, field->fieldname);
 		lua_remove(L, -2);
 		break;
 	case LUACS_TARRAY:
 		/* use the cache if any */
-		luacs_getref(L, obj->tblref);
+		luacs_usertable(L, 1);
 		lua_getfield(L, -1, field->fieldname);
 		if (lua_isnil(L, -1)) {
 			lua_pop(L, 1);
@@ -1330,14 +1358,14 @@ readonly:
 				*(void **)(obj->ptr + field->regeon.off) =
 				    ano != NULL? ano->ptr : NULL;
 				/* use the same object */
-				luacs_getref(L, obj->tblref);
+				luacs_usertable(L, 1);
 				lua_pushvalue(L, 3);
 				lua_setfield(L, -2, field->fieldname);
 				lua_pop(L, 1);
 			}
 			break;
 		case LUACS_TEXTREF:
-			luacs_getref(L, obj->tblref);
+			luacs_usertable(L, 1);
 			lua_pushvalue(L, 3);
 			lua_setfield(L, -2, field->fieldname);
 			lua_pop(L, 1);
@@ -1445,7 +1473,6 @@ luacs_object__gc(lua_State *L)
 		lua_pcall(L, 1, 0, 0);
 	}
 	luacs_unref(L, obj->typref);
-	luacs_unref(L, obj->tblref);
 
 	return (0);
 }
