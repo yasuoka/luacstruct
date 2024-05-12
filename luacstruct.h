@@ -61,6 +61,7 @@ int	 luacs_declare_field(lua_State *, enum luacstruct_type,
 	    const char *, const char *, size_t, int, int, unsigned);
 int	 luacs_newobject(lua_State *, const char *, void *);
 void	*luacs_object_pointer(lua_State *, int, const char *);
+void	 luacs_object_clear(lua_State *, int);
 int	 luacs_object_typename(lua_State *);
 void	*luacs_checkobject(lua_State *, int, const char *);
 int	 luacs_newenum0(lua_State *, const char *, size_t);
@@ -182,6 +183,13 @@ int	 luacs_newarraytype(lua_State *, const char *, enum luacstruct_type,
 		    #_field, sizeof(((struct _type *)0)->_field),\
 		    offsetof(struct _type, _field), 0, _flags);	\
 	} while (0/*CONSTCOND*/)
+/*
+ * When using Lua 5.1 and the pseudo value might reference the parent object,
+ * you need to explicitly clear the value or call luacs_object_clear().
+ * luacstruct uses a weak reference to manage the reference from the object to
+ * the pseudo values, but since a weak table in Lua 5.1 is not an ephemeron
+ * table, it doesn't work properly.
+ */
 #define luacs_pseudo_field(_L, _type, _field, _flags)		\
 	do {							\
 		luacs_declare_field((_L), LUACS_TEXTREF, NULL,	\

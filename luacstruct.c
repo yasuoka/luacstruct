@@ -1115,6 +1115,24 @@ luacs_object_pointer(lua_State *L, int ref, const char *typename)
 	return (NULL);
 }
 
+/*
+ * Explicitly clear the internal user table.  In Lua 5.2 and later, the
+ * reference is automatically calculated.  However, it doesn't work in Lua 5.1
+ * when the pseudo value references the parent object.  To avoid this problem,
+ * call this function when the object is no longer needed.
+ */
+void
+luacs_object_clear(lua_State *L, int idx)
+{
+	lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
+	if (lua_isnil(L, -1))
+		return;
+	lua_pushvalue(L, -2);
+	lua_newtable(L);
+	lua_settable(L, -3);
+	lua_pop(L, 1);
+}
+
 void
 luacs_object_compat(lua_State *L, int ref, struct luacobj_compat *compat)
 {
