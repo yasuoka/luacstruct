@@ -14,10 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #include <sys/types.h>
+#include <sys/cdefs.h>
 #include <sys/queue.h>
 #include <sys/tree.h>
 
 #include <errno.h>
+#include <endian.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
