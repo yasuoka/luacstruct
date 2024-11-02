@@ -85,6 +85,36 @@
 #define __unused       __attribute__((__unused__))
 #endif
 
+#ifdef _WIN32
+#if BYTE_ORDER == LITTLE_ENDIAN
+#define htobe16(x)	_byteswap_ushort(x)
+#define htole16(x)	(x)
+#define htobe32(x)	_byteswap_ulong(x)
+#define htole32(x)	(x)
+#define htobe64(x)	_byteswap_uint64(x)
+#define htole64(x)	(x)
+#define be16toh(x)	_byteswap_ushort(x)
+#define le16toh(x)	(x)
+#define be32toh(x)	_byteswap_ulong(x)
+#define le32toh(x)	(x)
+#define be64toh(x)	_byteswap_uint64(x)
+#define le64toh(x)	(x)
+#else
+#define htobe16(x)	(x)
+#define htole16(x)	_byteswap_ushort(x)
+#define htobe32(x)	(x)
+#define htole32(x)	_byteswap_ulong(x)
+#define htobe64(x)	(x)
+#define htole64(x)	_byteswap_uint64(x)
+#define be16toh(x)	(x)
+#define le16toh(x)	_byteswap_ushort(x)
+#define be32toh(x)	(x)
+#define le32toh(x)	_byteswap_ulong(x)
+#define be64toh(x)	(x)
+#define le64toh(x)	_byteswap_uint64(x)
+#endif
+#endif
+
 struct luacstruct {
 	const char			*typename;
 	char				 metaname[METANAMELEN];
