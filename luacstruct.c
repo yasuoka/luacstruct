@@ -23,7 +23,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -293,7 +292,7 @@ luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 	memcpy(cs->metaname, metaname, MINIMUM(sizeof(metaname),
 	    sizeof(cs->metaname)));
 
-	cs->typename = index(cs->metaname, '.') + 1;
+	cs->typename = strchr(cs->metaname, '.') + 1;
 	SPLAY_INIT(&cs->fields);
 	TAILQ_INIT(&cs->sorted);
 
@@ -622,7 +621,7 @@ luacs_newarraytype(lua_State *L, const char *tname, enum luacstruct_type _type,
 	memcpy(cat->metaname, metaname, MINIMUM(sizeof(metaname),
 	    sizeof(cat->metaname)));
 
-	cat->typename = index(cat->metaname, '.') + 1;
+	cat->typename = strchr(cat->metaname, '.') + 1;
 	if ((ret = luaL_newmetatable(L, METANAME_LUACARRAYTYPE)) != 0) {
 		lua_pushcfunction(L, luacs_arraytype__gc);
 		lua_setfield(L, -2, "__gc");
@@ -1815,7 +1814,7 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 	    sizeof(ce->metaname)));
 
 	ce->valwidth = valwidth;
-	ce->enumname = index(ce->metaname, '.') + 1;
+	ce->enumname = strchr(ce->metaname, '.') + 1;
 	SPLAY_INIT(&ce->labels);
 	SPLAY_INIT(&ce->values);
 	if ((ret = luaL_newmetatable(L, METANAME_LUACSENUM)) != 0) {
