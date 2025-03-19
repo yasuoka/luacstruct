@@ -65,20 +65,24 @@ function is not used directly, used through the helper macro functions
 as follows:
 
 ```c
-#define luacs_int_field(_L, _type, _field, _flags)              // int
-#define luacs_unsigned_field(_L, _type, _field, _flags)         // unsigned int
-#define luacs_enum_field(_L, _type, _etype, _field, _flags)     // enum
-#define luacs_bool_field(_L, _type, _field, _flags)             // bool
-#define luacs_bytearray_field(_L, _type, _field, _flags)        // byterray
-#define luacs_string_field(_L, _type, _field, _flags)           // char[] represents a string
-#define luacs_strptr_field(_L, _type, _field, _flags)           // a pointer to a string
-#define luacs_objref_field(_L, _type, _tname, _field, _flags)   // a pointer to an instance of the
-                                                                // _tname struct
-#define luacs_nested_field(_L, _type, _tname, _field, _flags)   // nested  _tname struct
-#define luacs_extref_field(_L, _type, _field, _flags)           // can be set an external lua
-                                                                // object manually
-#define luacs_pseudo_field(_L, _type, _field, _flags)           // for a pseudo field.  can be set
-                                                                // any lua object manually
+#define luacs_int_field(_L, _type, _field, _flags)            // int
+#define luacs_unsigned_field(_L, _type, _field, _flags)       // unsigned int
+#define luacs_enum_field(_L, _type, _etype, _field, _flags)   // enum
+#define luacs_bool_field(_L, _type, _field, _flags)           // bool
+#define luacs_bytearray_field(_L, _type, _field, _flags)      // byterray
+#define luacs_string_field(_L, _type, _field, _flags)         // char[] represents a string
+#define luacs_wstring_field(_L, _type, _field, _flags)        // wchar_t[] represents
+                                                              // a wide-character string
+#define luacs_strptr_field(_L, _type, _field, _flags)         // pointer to a string
+#define luacs_wstrptr_field(_L, _type, _field, _flags)        // pointer to a wide-character
+                                                              // string
+#define luacs_objref_field(_L, _type, _tname, _field, _flags) // a pointer to an instance of
+                                                              // the _tname struct
+#define luacs_nested_field(_L, _type, _tname, _field, _flags) // nested  _tname struct
+#define luacs_extref_field(_L, _type, _field, _flags)         // can be set an external lua
+                                                              // object manually
+#define luacs_pseudo_field(_L, _type, _field, _flags)         // for a pseudo field.  can be
+                                                              // set any lua object manually
 ```
 
 The meaning of the arguments is as follows:
