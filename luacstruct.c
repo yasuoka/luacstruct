@@ -1178,10 +1178,13 @@ luacs_object_pointer(lua_State *L, int ref, const char *typename)
 void
 luacs_object_clear(lua_State *L, int idx)
 {
+	int	 absidx;
+
+	absidx = lua_absindex(L, idx);
 	lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
 	if (lua_isnil(L, -1))
 		return;
-	lua_pushvalue(L, -2);
+	lua_pushvalue(L, absidx);
 	lua_newtable(L);
 	lua_settable(L, -3);
 	lua_pop(L, 1);
