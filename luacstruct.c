@@ -1640,14 +1640,59 @@ luacs_pushregeon(lua_State *L, struct luacobject *obj,
 		lua_pushboolean(L, *(bool *)(obj->ptr + regeon->off));
 		break;
 	case LUACS_TSTRING:
-		lua_pushstring(L, (const char *)(obj->ptr + regeon->off));
+	    {
+		int		 len;
+		const char	*ch;
+		char		*str, buf[128];
+
+		for (len = 0, ch = (const char *)(obj->ptr + regeon->off);
+		    ch < (const char *)(obj->ptr + regeon->off +
+		    regeon->size) && *ch != '\0'; ch++, len++)
+			;
+		if (*ch != '\0') {
+			if ((str = calloc(1, len + 1)) == NULL) {
+				strerror_r(errno, buf, sizeof(buf));
+				lua_pushstring(L, buf);
+				abort();
+			}
+			memcpy(str, obj->ptr + regeon->off, len);
+			str[len] = '\0';
+			lua_pushstring(L, str);
+			free(str);
+		} else
+			lua_pushstring(L,
+			    (const char *)(obj->ptr + regeon->off));
 		break;
+	    }
 	case LUACS_TSTRPTR:
 		lua_pushstring(L, *(const char **)(obj->ptr + regeon->off));
 		break;
 	case LUACS_TWSTRING:
+	    {
+		int		 len;
+		const wchar_t	*ch;
+		wchar_t		*wstr;
+		char		 buf[128];
+
+		for (len = 0, ch = (const wchar_t *)obj->ptr;
+		    ch < (const wchar_t *)(obj->ptr + regeon->off +
+		    regeon->size) && *ch != L'\0'; ch++, len++)
+			;
+		if (*ch != L'\0') {
+			if ((wstr = calloc(sizeof(wchar_t), len + 1)) == NULL) {
+				strerror_r(errno, buf, sizeof(buf));
+				lua_pushstring(L, buf);
+				abort();
+			}
+			memcpy(wstr, obj->ptr + regeon->off,
+			    sizeof(wchar_t) * len);
+			wstr[len] = L'\0';
+			luacs_pushwstring(L, wstr);
+			free(wstr);
+		}
 		luacs_pushwstring(L, (const wchar_t *)(obj->ptr + regeon->off));
 		break;
+	    }
 	case LUACS_TWSTRPTR:
 		luacs_pushwstring(L,
 		    *(const wchar_t **)(obj->ptr + regeon->off));
@@ -1805,10 +1850,10 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 	case LUACS_TBYTEARRAY:
 		luaL_checkstring(L, absidx);
 		siz = lua_rawlen(L, absidx);
-		luaL_argcheck(L, siz < regeon->size, absidx, "too long");
+		luaL_argcheck(L, siz <= regeon->size, absidx, "too long");
 		siz = MINIMUM(siz, regeon->size);
 		memcpy(obj->ptr + regeon->off, lua_tostring(L, absidx), siz);
-		if (regeon->type == LUACS_TSTRING)
+		if (regeon->type == LUACS_TSTRING && siz < regeon->size)
 			*(char *)(obj->ptr + regeon->off + siz) = '\0';
 		break;
 	case LUACS_TWSTRING:
@@ -1823,7 +1868,7 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 			abort();
 		}
 		wstrsiz *= sizeof(wchar_t);
-		luaL_argcheck(L, wstrsiz < regeon->size, absidx, "too long");
+		luaL_argcheck(L, wstrsiz <= regeon->size, absidx, "too long");
 		if (mbstowcs((wchar_t *)(obj->ptr + regeon->off),
 		    lua_tostring(L, absidx), wstrsiz) == (size_t)-1) {
 			luaL_error(L,
