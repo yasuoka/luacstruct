@@ -1169,9 +1169,10 @@ luacs_object_pointer(lua_State *L, int ref, const char *typename)
 }
 
 /*
- * Explicitly clear the internal user table.  In Lua 5.2 and later, the
- * reference is automatically calculated.  However, it doesn't work in Lua 5.1
- * when the pseudo value references the parent object.  To avoid this problem,
+ * Explicitly clear the weak reference from the internal user table.  In Lua
+ * 5.2 and later, no need to use this function since the reference is
+ * automatically calculated.  However, it doesn't work in Lua 5.1 when the
+ * pseudo value references the parent object.  To avoid this problem,
  * call this function when the object is no longer needed.
  */
 void
