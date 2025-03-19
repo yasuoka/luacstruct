@@ -31,7 +31,7 @@
 
 #include "luacstruct.h"
 
-#define LUACS_VERSION		"2"
+#define LUACS_VERSION		"3"
 
 #define	METANAMELEN		80
 #define	METANAME_LUACSTRUCT	"luacstruct" LUACS_VERSION
@@ -266,6 +266,7 @@ static int	 luacenum_value_cmp(struct luacenum_value *,
 static int	 luacs_ref(lua_State *);
 static int	 luacs_getref(lua_State *, int);
 static int	 luacs_unref(lua_State *, int);
+static int	 luacs_pushwstring(lua_State *, const wchar_t *);
 
 SPLAY_PROTOTYPE(luacstruct_fields, luacstruct_field, tree,
     luacstruct_field_cmp);
@@ -853,6 +854,7 @@ readonly:
 		luacs_pullregeon(L, obj, &regeon, 3);
 		break;
 	case LUACS_TSTRPTR:
+	case LUACS_TWSTRPTR:
 		goto readonly;
 	case LUACS_TOBJREF:
 	case LUACS_TOBJENT:
@@ -1398,6 +1400,7 @@ readonly:
 			luacs_pullregeon(L, obj, &field->regeon, 3);
 			break;
 		case LUACS_TSTRPTR:
+		case LUACS_TWSTRPTR:
 			goto readonly;
 		case LUACS_TOBJREF:
 		case LUACS_TOBJENT:
@@ -1642,6 +1645,13 @@ luacs_pushregeon(lua_State *L, struct luacobject *obj,
 	case LUACS_TSTRPTR:
 		lua_pushstring(L, *(const char **)(obj->ptr + regeon->off));
 		break;
+	case LUACS_TWSTRING:
+		luacs_pushwstring(L, (const wchar_t *)(obj->ptr + regeon->off));
+		break;
+	case LUACS_TWSTRPTR:
+		luacs_pushwstring(L,
+		    *(const wchar_t **)(obj->ptr + regeon->off));
+		break;
 	case LUACS_TENUM:
 	    {
 		intmax_t		 value;
@@ -1802,6 +1812,29 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 			*(char *)(obj->ptr + regeon->off + regeon->size -1) =
 			    '\0';
 		break;
+	case LUACS_TWSTRING:
+	    {
+		size_t	wstrsiz;
+
+		luaL_checkstring(L, absidx);
+		if ((wstrsiz = mbstowcs(NULL, lua_tostring(L, absidx), 0)) ==
+		    (size_t)-1) {
+			luaL_error(L,
+			    "the string contains an invalid character");
+			abort();
+		}
+		wstrsiz *= sizeof(wchar_t);
+		luaL_argcheck(L, wstrsiz < regeon->size, absidx, "too long");
+		if (mbstowcs((wchar_t *)(obj->ptr + regeon->off),
+		    lua_tostring(L, absidx), wstrsiz) == (size_t)-1) {
+			luaL_error(L,
+			    "the string contains an invalid character");
+			abort();
+		}
+		if (wstrsiz + sizeof(wchar_t) <= regeon->size)
+			*(wchar_t *)(obj->ptr + regeon->off + wstrsiz) = L'\0';
+		break;
+	    }
 	case LUACS_TOBJREF:
 	case LUACS_TOBJENT:
 	case LUACS_TEXTREF:
@@ -2228,6 +2261,34 @@ luacs_unref(lua_State *L, int ref)
 	lua_pop(L, 1);
 
 	return (0);
+}
+
+/* utilities */
+int
+luacs_pushwstring(lua_State *L, const wchar_t *wstr)
+{
+	char	*mbs = NULL;
+	size_t	 mbssiz = 0;
+	char	 buf[128];
+
+	if ((mbssiz = wcstombs(mbs, wstr, 0)) == (size_t)-1) {
+		luaL_error(L, "the string containing invalid wide character");
+		abort();
+	}
+	mbssiz++;	/* for null char */
+	if ((mbs = calloc(1, mbssiz)) == NULL) {
+		strerror_r(errno, buf, sizeof(buf));
+		lua_pushstring(L, buf);
+		abort();
+	}
+	if ((wcstombs(mbs, wstr, mbssiz)) == (size_t)-1) {
+		luaL_error(L, "the string containing invalid wide character");
+		abort();
+	}
+	lua_pushstring(L, mbs);
+	free(mbs);
+
+	return (1);
 }
 
 SPLAY_GENERATE(luacstruct_fields, luacstruct_field, tree, luacstruct_field_cmp);

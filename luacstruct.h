@@ -35,6 +35,8 @@ enum luacstruct_type {
 	LUACS_TBOOL,
 	LUACS_TSTRING,
 	LUACS_TSTRPTR,
+	LUACS_TWSTRING,
+	LUACS_TWSTRPTR,
 	LUACS_TBYTEARRAY,
 	LUACS_TOBJREF,
 	LUACS_TOBJENT,
@@ -159,6 +161,27 @@ int	 luacs_newarraytype(lua_State *, const char *, enum luacstruct_type,
 		    sizeof(((struct _type *)0)->_field),	\
 		    "`"#_field"' is not a pointer value");	\
 		luacs_declare_field((_L), LUACS_TSTRPTR, NULL,	\
+		    #_field, sizeof(((struct _type *)0)->_field),\
+		    offsetof(struct _type, _field), 0, _flags);	\
+	} while (0/*CONSTCOND*/)
+/*
+ * Declare the wide char(wchar_t) string field.  Because Lua doesn't use
+ * wchar_t string, lua_cstruct convert the string into multi-byte chars
+ * by wcstombs(3) when mapping to Lua.  This means the string is encoded
+ * by the encoding specified by setlocale(3).
+ */
+#define luacs_wstring_field(_L, _type, _field, _flags)		\
+	do {							\
+		luacs_declare_field((_L), LUACS_TWSTRING, NULL,	\
+		    #_field, sizeof(((struct _type *)0)->_field),\
+		    offsetof(struct _type, _field), 0, _flags);	\
+	} while (0/*CONSTCOND*/)
+#define luacs_wstrptr_field(_L, _type, _field, _flags)		\
+	do {							\
+		static_assert(sizeof(wchar_t *) ==		\
+		    sizeof(((struct _type *)0)->_field),	\
+		    "`"#_field"' is not a pointer value");	\
+		luacs_declare_field((_L), LUACS_TWSTRPTR, NULL,	\
 		    #_field, sizeof(((struct _type *)0)->_field),\
 		    offsetof(struct _type, _field), 0, _flags);	\
 	} while (0/*CONSTCOND*/)
