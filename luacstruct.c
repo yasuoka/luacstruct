@@ -19,14 +19,8 @@
 #include <sys/tree.h>
 
 #include <errno.h>
-#ifdef _MSC_VER // MSVC doesn't have stdbool.h
-#include <windef.h>
-#define bool BOOL
-#define true 1
-#define false 0
-#else
 #include <stdbool.h>
-#endif
+
 #ifdef _WIN32
 #if BYTE_ORDER == LITTLE_ENDIAN
 #define htobe16(x)    _byteswap_ushort(x)
