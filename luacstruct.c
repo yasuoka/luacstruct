@@ -19,7 +19,59 @@
 #include <sys/tree.h>
 
 #include <errno.h>
+#ifdef _MSC_VER // MSVC doesn't have stdbool.h
+#include <windef.h>
+#define bool BOOL
+#define true 1
+#define false 0
+#else
+#include <stdbool.h>
+#endif
+#ifdef _WIN32
+#if BYTE_ORDER == LITTLE_ENDIAN
+#define htobe16(x)    _byteswap_ushort(x)
+#define htole16(x)    (x)
+#define htobe32(x)    _byteswap_ulong(x)
+#define htole32(x)    (x)
+#define htobe64(x)    _byteswap_uint64(x)
+#define htole64(x)    (x)
+#define be16toh(x)    _byteswap_ushort(x)
+#define le16toh(x)    (x)
+#define be32toh(x)    _byteswap_ulong(x)
+#define le32toh(x)    (x)
+#define be64toh(x)    _byteswap_uint64(x)
+#define le64toh(x)    (x)
+#else
+#define htobe16(x)    (x)
+#define htole16(x)    _byteswap_ushort(x)
+#define htobe32(x)    (x)
+#define htole32(x)    _byteswap_ulong(x)
+#define htobe64(x)    (x)
+#define htole64(x)    _byteswap_uint64(x)
+#define be16toh(x)    (x)
+#define le16toh(x)    _byteswap_ushort(x)
+#define be32toh(x)    (x)
+#define le32toh(x)    _byteswap_ulong(x)
+#define be64toh(x)    (x)
+#define le64toh(x)    _byteswap_uint64(x)
+#endif
+#elif defined(__APPLE__)
+#include <libkern/OSByteOrder.h>
+#define htobe16(x)    OSSwapHostToBigInt16(x)
+#define htole16(x)    OSSwapHostToLittleInt16(x)
+#define be16toh(x)    OSSwapBigToHostInt16(x)
+#define le16toh(x)    OSSwapLittleToHostInt16(x)
+#define htobe32(x)    OSSwapHostToBigInt32(x)
+#define htole32(x)    OSSwapHostToLittleInt32(x)
+#define be32toh(x)    OSSwapBigToHostInt32(x)
+#define le32toh(x)    OSSwapLittleToHostInt32(x)
+#define htobe64(x)    OSSwapHostToBigInt64(x)
+#define htole64(x)    OSSwapHostToLittleInt64(x)
+#define be64toh(x)    OSSwapBigToHostInt64(x)
+#define le64toh(x)    OSSwapLittleToHostInt64(x)
+#else // not mac or windows, try endian.h
 #include <endian.h>
+#endif
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -84,36 +136,6 @@
 
 #ifndef __unused
 #define __unused       __attribute__((__unused__))
-#endif
-
-#ifdef _WIN32
-#if BYTE_ORDER == LITTLE_ENDIAN
-#define htobe16(x)	_byteswap_ushort(x)
-#define htole16(x)	(x)
-#define htobe32(x)	_byteswap_ulong(x)
-#define htole32(x)	(x)
-#define htobe64(x)	_byteswap_uint64(x)
-#define htole64(x)	(x)
-#define be16toh(x)	_byteswap_ushort(x)
-#define le16toh(x)	(x)
-#define be32toh(x)	_byteswap_ulong(x)
-#define le32toh(x)	(x)
-#define be64toh(x)	_byteswap_uint64(x)
-#define le64toh(x)	(x)
-#else
-#define htobe16(x)	(x)
-#define htole16(x)	_byteswap_ushort(x)
-#define htobe32(x)	(x)
-#define htole32(x)	_byteswap_ulong(x)
-#define htobe64(x)	(x)
-#define htole64(x)	_byteswap_uint64(x)
-#define be16toh(x)	(x)
-#define le16toh(x)	_byteswap_ushort(x)
-#define be32toh(x)	(x)
-#define le32toh(x)	_byteswap_ulong(x)
-#define be64toh(x)	(x)
-#define le64toh(x)	_byteswap_uint64(x)
-#endif
 #endif
 
 struct luacstruct {
