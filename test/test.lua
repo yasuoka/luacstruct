@@ -18,6 +18,8 @@ test_str.test(p)	-- test in C
 ret, err = pcall(function() p.name = string.rep("A", 128) end)
 assert(ret)
 assert(#p.name == 128)
+ret, err = pcall(function() p.name = string.rep("A", 129) end)
+assert(not ret)
 p = nil
 
 ---
@@ -36,4 +38,6 @@ test_wstr.test(p)	-- test in C
 ret, err = pcall(function() p.name = string.rep("A", 128) end)
 assert(ret)
 assert(#p.name == 128)
+ret, err = pcall(function() p.name = string.rep("A", 129) end)
+assert(not ret)
 p = nil
