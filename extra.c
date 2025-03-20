@@ -114,7 +114,7 @@ l_test_ext(lua_State *L)
 	luacs_int_field(L, ext_main, b, 0);
 	luacs_extref_field(L, ext_main, ref, 0);
 	luacs_pseudo_field(L, ext_main, extras, 0);
-	lua_pop(L, 2);
+	lua_pop(L, 1);
 
 	m = calloc(1, sizeof(struct ext_main));
 	m->a = 1;
