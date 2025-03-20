@@ -2,7 +2,7 @@ LUA?=		lua51
 LUA_CFLAGS!=	pkg-config --cflags ${LUA}
 LUA_LDADD!=	pkg-config --libs ${LUA}
 
-CFLAGS=		--shared -fPIC -DLUACS_DEBUG
+CFLAGS=		--shared -fPIC -DLUACS_DEBUG -fvisibility=hidden
 CFLAGS+=	-I${.CURDIR}/.. ${LUA_CFLAGS}
 
 all: test
@@ -10,13 +10,13 @@ all: test
 MODULES=	
 
 test_wstr.so: test_wstr.c
-	${CC} ${CFLAGS} -o $@ ${.CURDIR}/../luacstruct.c \
-	    ${.CURDIR}/test_wstr.c ${LUA_LDADD}
+	${CC} ${CFLAGS} -DLUACS_VARIANT=\"t1\" -o $@ \
+	    ${.CURDIR}/../luacstruct.c ${.CURDIR}/test_wstr.c ${LUA_LDADD}
 MODULES+=	test_wstr.so
 
 test_str.so: test_str.c
-	${CC} ${CFLAGS} -o $@ ${.CURDIR}/../luacstruct.c \
-	    ${.CURDIR}/test_str.c ${LUA_LDADD}
+	${CC} ${CFLAGS} -DLUACS_VARIANT=\"t2\" -o $@ \
+	    ${.CURDIR}/../luacstruct.c ${.CURDIR}/test_str.c ${LUA_LDADD}
 MODULES+=	test_str.so
 
 test:	${MODULES}

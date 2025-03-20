@@ -16,6 +16,7 @@ static int	 test_str_test(lua_State *);
 
 static volatile int	test_str_initialized = 0;
 
+EXPORT
 int
 luaopen_test_str(lua_State *L)
 {
