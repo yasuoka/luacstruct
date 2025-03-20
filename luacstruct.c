@@ -208,7 +208,6 @@ struct luacenum_value {
 	SPLAY_ENTRY(luacenum_value)	 treev;
 };
 
-static int luacs_usertable(lua_State *, int);
 static struct luacstruct
 		*luacs_checkstruct(lua_State *, int);
 static int	 luacs_usertable(lua_State *, int);
