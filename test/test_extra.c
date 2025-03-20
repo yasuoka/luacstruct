@@ -3,6 +3,8 @@
 #include <lua.h>
 #include "luacstruct.h"
 
+#include "test_subr.h"
+
 #ifndef static_assert
 #define static_assert(_cond, _msg) ((void)0)
 #endif
@@ -15,19 +17,28 @@ static int l_test_copy(lua_State *);
 static int l_test_array(lua_State *);
 static int l_test_tostring_const(lua_State *);
 
+EXPORT
 int
-luaopen_extra(lua_State *L)
+luaopen_test_extra(lua_State *L)
 {
-	lua_register(L, "test_ref", l_test_ref);
-	lua_register(L, "test_nest", l_test_nest);
-	lua_register(L, "test_ext", l_test_ext);
-	lua_register(L, "test_enum", l_test_enum);
-	lua_register(L, "test_copy", l_test_copy);
-	lua_register(L, "test_array", l_test_array);
-	lua_register(L, "test_tostring_const", l_test_tostring_const);
-	lua_register(L, "typename", luacs_object_typename);
+#define REGISTER(_L, _funcname, _cfunc)			\
+	do {						\
+		lua_pushcfunction((_L), (_cfunc));	\
+		lua_setfield((_L), -2, (_funcname));	\
+	} while (0/*CONSTCOND*/)
 
-	return (0);
+	lua_newtable(L);
+
+	REGISTER(L, "test_ref", l_test_ref);
+	REGISTER(L, "test_nest", l_test_nest);
+	REGISTER(L, "test_ext", l_test_ext);
+	REGISTER(L, "test_enum", l_test_enum);
+	REGISTER(L, "test_copy", l_test_copy);
+	REGISTER(L, "test_array", l_test_array);
+	REGISTER(L, "test_tostring_const", l_test_tostring_const);
+	REGISTER(L, "typename", luacs_object_typename);
+
+	return (1);
 }
 
 int

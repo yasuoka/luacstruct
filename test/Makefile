@@ -1,6 +1,6 @@
 LUA?=		lua51
-LUA_CFLAGS!=	pkg-config --cflags ${LUA}
-LUA_LDADD!=	pkg-config --libs ${LUA}
+LUA_CFLAGS!!=	pkg-config --cflags ${LUA}
+LUA_LDADD!!=	pkg-config --libs ${LUA}
 
 CFLAGS=		--shared -fPIC -DLUACS_DEBUG -fvisibility=hidden
 CFLAGS+=	-I${.CURDIR}/.. ${LUA_CFLAGS}
@@ -18,6 +18,11 @@ test_str.so: test_str.c
 	${CC} ${CFLAGS} -DLUACS_VARIANT=\"t2\" -o $@ \
 	    ${.CURDIR}/../luacstruct.c ${.CURDIR}/test_str.c ${LUA_LDADD}
 MODULES+=	test_str.so
+
+test_extra.so: test_extra.c
+	${CC} ${CFLAGS} -DLUACS_VARIANT=\"t3\" -o $@ \
+	    ${.CURDIR}/../luacstruct.c ${.CURDIR}/test_extra.c ${LUA_LDADD}
+MODULES+=	test_extra.so
 
 test:	${MODULES}
 	${LUA} test.lua
