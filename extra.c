@@ -316,12 +316,9 @@ static int
 person_tostring(lua_State *L)
 {
 	struct person *self;
-	char	*buf = NULL;
 
 	self = luacs_object_pointer(L, 1, NULL);
-	asprintf(&buf, "%s(%d,%d)", self->name, self->height, self->weight);
-	lua_pushstring(L, buf);
-	free(buf);
+	lua_pushfstring(L, "%s(%d,%d)", self->name, self->height, self->weight);
 
 	return (1);
 }
