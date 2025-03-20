@@ -1111,6 +1111,7 @@ luacs_newobject0(lua_State *L, void *ptr)
 			    field->regeon.size);
 		}
 		obj = lua_newuserdata(L, sizeof(struct luacobject) + objsiz);
+		memset(obj, 0, sizeof(struct luacobject) + objsiz);
 		obj->ptr = (caddr_t)(obj + 1);
 	}
 	obj->cs = cs;
