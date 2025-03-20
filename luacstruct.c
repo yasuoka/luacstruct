@@ -2207,13 +2207,8 @@ luacs_enumvalue__eq(lua_State *L)
 	lua_settop(L, 2);
 	val1 = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	ival1 = val1->value;
-
-	if (lua_isnumber(L, 2))
-		ival2 = lua_tointeger(L, 2);
-	else {
-		val2 = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
-		ival2 = val2->value;
-	}
+	val2 = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
+	ival2 = val2->value;
 	if (ival1 == ival2)
 		lua_pushboolean(L, 1);
 	else
@@ -2231,13 +2226,8 @@ luacs_enumvalue__lt(lua_State *L)
 	lua_settop(L, 2);
 	val1 = luaL_checkudata(L, 1, METANAME_LUACSENUMVAL);
 	ival1 = val1->value;
-
-	if (lua_isnumber(L, 2))
-		ival2 = lua_tointeger(L, 2);
-	else {
-		val2 = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
-		ival2 = val2->value;
-	}
+	val2 = luaL_checkudata(L, 2, METANAME_LUACSENUMVAL);
+	ival2 = val2->value;
 	if (ival1 < ival2)
 		lua_pushboolean(L, 1);
 	else
