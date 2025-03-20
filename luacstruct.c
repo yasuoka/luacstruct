@@ -31,17 +31,24 @@
 
 #include "luacstruct.h"
 
-#define LUACS_VERSION		"3"
+/*
+ * When this is used by multiple modules, meta names in Lua will be conflicted,
+ * which might cause problems.  Define LUACS_VARIANT uniquely per a module to
+ * avoid the problems.
+ */
+#ifndef LUACS_VARIANT
+#define LUACS_VARIANT		"3"
+#endif
 
 #define	METANAMELEN		80
-#define	METANAME_LUACSTRUCT	"luacstruct" LUACS_VERSION
-#define	METANAME_LUACSENUM	"luacenum" LUACS_VERSION
-#define	METANAME_LUACTYPE	"luactype" LUACS_VERSION "."
-#define	METANAME_LUACARRAY	"luacarray" LUACS_VERSION
-#define	METANAME_LUACARRAYTYPE	"luacarraytype" LUACS_VERSION
-#define	METANAME_LUACSTRUCTOBJ	"luacstructobj" LUACS_VERSION
-#define	METANAME_LUACSENUMVAL	"luacenumval" LUACS_VERSION
-#define	METANAME_LUACSUSERTABLE	"luacusertable" LUACS_VERSION
+#define	METANAME_LUACSTRUCT	"luacstruct" LUACS_VARIANT
+#define	METANAME_LUACSENUM	"luacenum" LUACS_VARIANT
+#define	METANAME_LUACTYPE	"luactype" LUACS_VARIANT "."
+#define	METANAME_LUACARRAY	"luacarray" LUACS_VARIANT
+#define	METANAME_LUACARRAYTYPE	"luacarraytype" LUACS_VARIANT
+#define	METANAME_LUACSTRUCTOBJ	"luacstructobj" LUACS_VARIANT
+#define	METANAME_LUACSENUMVAL	"luacenumval" LUACS_VARIANT
+#define	METANAME_LUACSUSERTABLE	"luacusertable" LUACS_VARIANT
 
 #define	LUACS_REGISTRY_NAME	"luacstruct_registry"
 
