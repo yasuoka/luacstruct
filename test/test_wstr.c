@@ -70,6 +70,7 @@ test_wstr_test(lua_State *L)
 	struct luacobject	*obj;
 	struct test_wstr	*wstr;
 
+	lua_settop(L, 1);
 	wstr = luacs_object_pointer(L, 1, "test_wstr");
 	lua_pushvalue(L, 1);
 	lua_pushstring(L, "こんにちわ世界");

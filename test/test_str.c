@@ -64,6 +64,7 @@ test_str_test(lua_State *L)
 {
 	struct test_str		*str;
 
+	lua_settop(L, 1);
 	str = luacs_object_pointer(L, 1, "test_str");
 	lua_pushvalue(L, 1);
 	lua_pushstring(L, "Hello world");

@@ -77,7 +77,7 @@ luaopen_socket(lua_State *L)
 	lua_setfield(L, -2, "freeaddrinfo");
 	lua_pushcfunction(L, lua_addrinfo);
 	lua_setfield(L, -2, "addrinfo");
-	
+
 	return (1);
 }
 
@@ -88,6 +88,7 @@ lua_getaddrinfo(lua_State *L)
 	struct addrinfo	*hints, *ai0;
 	int		 ret;
 
+	lua_settop(L, 3);
 	if (!lua_isnil(L, 1))
 		host = luaL_checkstring(L, 1);
 	if (!lua_isnil(L, 2))
@@ -107,6 +108,7 @@ lua_freeaddrinfo(lua_State *L)
 {
 	struct addrinfo	*ai;
 
+	lua_settop(L, 1);
 	ai = luacs_checkobject(L, 1, "addrinfo");
 	freeaddrinfo(ai);
 
@@ -127,6 +129,7 @@ lua_in_addr__tostring(lua_State *L)
 	struct in_addr	*ina;
 	char		 buf[128];
 
+	lua_settop(L, 1);
 	ina = luacs_checkobject(L, 1, "in_addr");
 	if (inet_ntop(AF_INET, ina, buf, sizeof(buf)) == NULL)
 		luaL_error(L, "failed to convert a presentation format");
@@ -141,6 +144,7 @@ lua_in6_addr__tostring(lua_State *L)
 	struct in6_addr	*in6a;
 	char		 buf[128];
 
+	lua_settop(L, 1);
 	in6a = luacs_checkobject(L, 1, "in6_addr");
 	if (inet_ntop(AF_INET6, in6a, buf, sizeof(buf)) == NULL)
 		luaL_error(L, "failed to convert a presentation format");
@@ -161,7 +165,7 @@ socket_types(lua_State *L)
 	luacs_enum_declare_value(L, "AF_INET6", AF_INET6);
 	luacs_enum_declare_value(L, "AF_UNIX", AF_UNIX);
 	lua_pop(L, 1);
-	
+
 	/*
 	 * sockaddr
 	 */
