@@ -1827,10 +1827,9 @@ luacs_pullregeon(lua_State *L, struct luacobject *obj,
 				lua_error(L);
 			}
 		} else if (lua_type(L, absidx) == LUA_TUSERDATA) {
-			lua_pushcfunction(L, luacs_enum_memberof);
-			lua_pushvalue(L, -2);
+			lua_pushcclosure(L, luacs_enum_memberof, 1);
 			lua_pushvalue(L, absidx);
-			lua_call(L, 2, 1);
+			lua_call(L, 1, 1);
 			if (!lua_toboolean(L, -1))
 				luaL_error(L,
 				    "must be a member of `enum %s",

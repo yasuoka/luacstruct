@@ -132,6 +132,7 @@ local main = function()
     assert(color.get(1) == color.GREEN)
     assert(color.memberof(color.GREEN))
     assert(color.GREEN:tointeger() == 1)
+    m.color = color.BLUE
 
     --print(color)
     --print(color.RED)
