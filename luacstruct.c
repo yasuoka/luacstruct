@@ -1696,8 +1696,9 @@ luacs_pushregeon(lua_State *L, struct luacobject *obj,
 			wstr[len] = L'\0';
 			luacs_pushwstring(L, wstr);
 			free(wstr);
-		}
-		luacs_pushwstring(L, (const wchar_t *)(obj->ptr + regeon->off));
+		} else
+			luacs_pushwstring(L,
+			    (const wchar_t *)(obj->ptr + regeon->off));
 		break;
 	    }
 	case LUACS_TWSTRPTR:
