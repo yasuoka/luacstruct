@@ -2312,6 +2312,11 @@ luacs_pushwstring(lua_State *L, const wchar_t *wstr)
 	size_t	 mbssiz = 0;
 	char	 buf[128];
 
+	if (wstr == NULL) {
+		lua_pushnil(L);
+		return (1);
+	}
+
 	if ((mbssiz = wcstombs(mbs, wstr, 0)) == (size_t)-1) {
 		luaL_error(L, "the string containing invalid wide character");
 		abort();
