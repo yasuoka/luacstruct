@@ -1075,7 +1075,13 @@ luacs_array__gc(lua_State *L)
 	return (0);
 }
 
-/* object */
+/*
+ * Push an object located at the ptr of the C struct named tname.  If the ptr
+ * is NULL, push a newly created object.  Notice that the function calculates
+ * the object's size automatically by the region of the field located last.
+ * If the last field doesn't reach the end of the object, the object might be
+ * smaller than expected.
+ */
 int
 luacs_newobject(lua_State *L, const char *tname, void *ptr)
 {
