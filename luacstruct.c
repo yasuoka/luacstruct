@@ -289,6 +289,16 @@ luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 	char			 metaname[METANAMELEN], buf[128];
 	struct luacstruct_field	*fieldf, *fieldt;
 
+	/* Use if already exists */
+	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
+	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
+	if (!lua_isnil(L, -1)) {
+		cs = luacs_checkstruct(L, -1);
+		return (1);
+	}
+	lua_pop(L, 1);
+
+	/* Prepare the super struct */
 	if (supertname != NULL) {
 		snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE,
 		    supertname);
@@ -303,14 +313,7 @@ luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 		supercs = luacs_checkstruct(L, -1);
 	}
 
-	snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE, tname);
-	lua_getfield(L, LUA_REGISTRYINDEX, metaname);
-	if (!lua_isnil(L, -1)) {
-		cs = luacs_checkstruct(L, -1);
-		return (1);
-	}
-	lua_pop(L, 1);
-
+	/* Create and initialize a new cstruct */
 	cs = lua_newuserdata(L, sizeof(struct luacstruct));
 	lua_pushvalue(L, -1);
 	lua_setfield(L, LUA_REGISTRYINDEX, metaname);
@@ -321,7 +324,7 @@ luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 	SPLAY_INIT(&cs->fields);
 	TAILQ_INIT(&cs->sorted);
 
-	/* Inherit from super struct if specified */
+	/* Inherit from the super struct if specified */
 	if (supercs != NULL) {
 		TAILQ_FOREACH(fieldf, &supercs->sorted, queue) {
 			if ((fieldt = luacsfield_copy(L, fieldf)) == NULL) {
@@ -333,6 +336,7 @@ luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 			TAILQ_INSERT_TAIL(&cs->sorted, fieldt, queue);
 			SPLAY_INSERT(luacstruct_fields, &cs->fields, fieldt);
 		}
+		lua_remove(L, -2);
 	}
 
 	if ((ret = luaL_newmetatable(L, METANAME_LUACSTRUCT)) != 0) {
@@ -1267,6 +1271,7 @@ luacs_object__tostring(lua_State *L)
 		lua_pushvalue(L, 1);
 		lua_call(L, 1, 1);
 	} else {
+		lua_pop(L, 1);
 		snprintf(buf, sizeof(buf), "struct %s: %p", obj->cs->typename,
 		    obj->ptr);
 		lua_pushstring(L, buf);
@@ -1849,6 +1854,7 @@ luacs_pullregion(lua_State *L, struct luacobject *obj,
 			/* NOTREACHED */
 			abort();
 		}
+		lua_pop(L, 1);
 
 		ptr = obj->ptr + region->off;
 		switch (region->size) {
