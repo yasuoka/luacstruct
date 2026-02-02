@@ -282,7 +282,7 @@ SPLAY_PROTOTYPE(luacenum_labels, luacenum_value, treel, luacenum_label_cmp);
 SPLAY_PROTOTYPE(luacenum_values, luacenum_value, treev, luacenum_value_cmp);
 
 
-/* struct */
+/* Declare a new struct */
 int
 luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 {
