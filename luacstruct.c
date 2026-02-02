@@ -2333,6 +2333,7 @@ luacs_pushwstring(lua_State *L, const wchar_t *wstr)
 	if ((mbs = calloc(1, mbssiz)) == NULL) {
 		strerror_r(errno, buf, sizeof(buf));
 		lua_pushstring(L, buf);
+		lua_error(L);
 		abort();
 	}
 	if ((wcstombs(mbs, wstr, mbssiz)) == (size_t)-1) {
