@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -211,6 +212,7 @@ struct luacenum_value {
 static struct luacstruct
 		*luacs_checkstruct(lua_State *, int);
 static int	 luacs_usertable(lua_State *, int);
+static int	 luacs_deleteusertable(lua_State *, int);
 static int	 luacs_struct__gc(lua_State *);
 static struct luacstruct_field
 		*luacs_declare(lua_State *, enum luacstruct_type, const char *,
@@ -398,6 +400,23 @@ luacs_usertable(lua_State *L, int idx)
 		lua_settable(L, -4);
 	}
 	lua_remove(L, -2);
+
+	return (1);
+}
+
+int
+luacs_deleteusertable(lua_State *L, int idx)
+{
+	int	 absidx;
+
+	absidx = lua_absindex(L, idx);
+	lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
+	if (!lua_isnil(L, -1)) {
+		lua_pushvalue(L, absidx);
+		lua_pushnil(L);
+		lua_settable(L, -3);
+	}
+	lua_pop(L, 1);
 
 	return (1);
 }
@@ -1075,6 +1094,7 @@ luacs_array__gc(lua_State *L)
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	if (obj->typref != 0)
 		luacs_unref(L, obj->typref);
+	luacs_deleteusertable(L, 1);
 
 	return (0);
 }
@@ -1195,11 +1215,11 @@ luacs_object_clear(lua_State *L, int idx)
 
 	absidx = lua_absindex(L, idx);
 	lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
-	if (lua_isnil(L, -1))
-		return;
-	lua_pushvalue(L, absidx);
-	lua_newtable(L);
-	lua_settable(L, -3);
+	if (!lua_isnil(L, -1)) {
+		lua_pushvalue(L, absidx);
+		lua_newtable(L);
+		lua_settable(L, -3);
+	}
 	lua_pop(L, 1);
 }
 
@@ -1563,6 +1583,7 @@ luacs_object__gc(lua_State *L)
 		lua_pcall(L, 1, 0, 0);
 	}
 	luacs_unref(L, obj->typref);
+	luacs_deleteusertable(L, 1);
 
 	return (0);
 }
@@ -1658,58 +1679,34 @@ luacs_pushregion(lua_State *L, struct luacobject *obj,
 		lua_pushboolean(L, *(bool *)(obj->ptr + region->off));
 		break;
 	case LUACS_TSTRING:
-	    {
-		int		 len;
-		const char	*ch;
-		char		*str, buf[128];
-
-		for (len = 0, ch = (const char *)(obj->ptr + region->off);
-		    ch < (const char *)(obj->ptr + region->off +
-		    region->size) && *ch != '\0'; ch++, len++)
-			;
-		if (*ch != '\0') {
-			if ((str = calloc(1, len + 1)) == NULL) {
-				strerror_r(errno, buf, sizeof(buf));
-				lua_pushstring(L, buf);
-				abort();
-			}
-			memcpy(str, obj->ptr + region->off, len);
-			str[len] = '\0';
-			lua_pushstring(L, str);
-			free(str);
-		} else
-			lua_pushstring(L,
-			    (const char *)(obj->ptr + region->off));
+		lua_pushlstring(L, (const char *)(obj->ptr + region->off),
+		    strnlen(obj->ptr + region->off, region->size));
 		break;
-	    }
 	case LUACS_TSTRPTR:
 		lua_pushstring(L, *(const char **)(obj->ptr + region->off));
 		break;
 	case LUACS_TWSTRING:
 	    {
-		int		 len;
-		const wchar_t	*ch;
 		wchar_t		*wstr;
 		char		 buf[128];
+		size_t		 wstrlen, wstrmax;
 
-		for (len = 0, ch = (const wchar_t *)obj->ptr;
-		    ch < (const wchar_t *)(obj->ptr + region->off +
-		    region->size) && *ch != L'\0'; ch++, len++)
-			;
-		if (*ch != L'\0') {
-			if ((wstr = calloc(sizeof(wchar_t), len + 1)) == NULL) {
+		wstr = (wchar_t *)obj->ptr;
+		wstrmax = region->size / sizeof(wchar_t);
+		wstrlen = wcsnlen(wstr, wstrmax);
+		if (wstrlen == wstrmax) {
+			wstrmax++;	/* for the null character */
+			if ((wstr = calloc(sizeof(wchar_t), wstrmax)) == NULL) {
 				strerror_r(errno, buf, sizeof(buf));
 				lua_pushstring(L, buf);
 				abort();
 			}
-			memcpy(wstr, obj->ptr + region->off,
-			    sizeof(wchar_t) * len);
-			wstr[len] = L'\0';
+			memcpy(wstr, wstr, region->size);
+			wstr[wstrlen] = L'\0';
 			luacs_pushwstring(L, wstr);
 			free(wstr);
 		} else
-			luacs_pushwstring(L,
-			    (const wchar_t *)(obj->ptr + region->off));
+			luacs_pushwstring(L, wstr);
 		break;
 	    }
 	case LUACS_TWSTRPTR:
@@ -1867,8 +1864,7 @@ luacs_pullregion(lua_State *L, struct luacobject *obj,
 		break;
 	case LUACS_TSTRING:
 	case LUACS_TBYTEARRAY:
-		luaL_checkstring(L, absidx);
-		siz = lua_rawlen(L, absidx);
+		luaL_checklstring(L, absidx, &siz);
 		luaL_argcheck(L, siz <= region->size, absidx, "too long");
 		siz = MINIMUM(siz, region->size);
 		memcpy(obj->ptr + region->off, lua_tostring(L, absidx), siz);
