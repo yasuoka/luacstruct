@@ -212,7 +212,6 @@ struct luacenum_value {
 static struct luacstruct
 		*luacs_checkstruct(lua_State *, int);
 static int	 luacs_usertable(lua_State *, int);
-static int	 luacs_deleteusertable(lua_State *, int);
 static int	 luacs_struct__gc(lua_State *);
 static struct luacstruct_field
 		*luacs_declare(lua_State *, enum luacstruct_type, const char *,
@@ -400,23 +399,6 @@ luacs_usertable(lua_State *L, int idx)
 		lua_settable(L, -4);
 	}
 	lua_remove(L, -2);
-
-	return (1);
-}
-
-int
-luacs_deleteusertable(lua_State *L, int idx)
-{
-	int	 absidx;
-
-	absidx = lua_absindex(L, idx);
-	lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
-	if (!lua_isnil(L, -1)) {
-		lua_pushvalue(L, absidx);
-		lua_pushnil(L);
-		lua_settable(L, -3);
-	}
-	lua_pop(L, 1);
 
 	return (1);
 }
@@ -1094,7 +1076,6 @@ luacs_array__gc(lua_State *L)
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	if (obj->typref != 0)
 		luacs_unref(L, obj->typref);
-	luacs_deleteusertable(L, 1);
 
 	return (0);
 }
@@ -1215,11 +1196,11 @@ luacs_object_clear(lua_State *L, int idx)
 
 	absidx = lua_absindex(L, idx);
 	lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSUSERTABLE);
-	if (!lua_isnil(L, -1)) {
-		lua_pushvalue(L, absidx);
-		lua_newtable(L);
-		lua_settable(L, -3);
-	}
+	if (lua_isnil(L, -1))
+		return;
+	lua_pushvalue(L, absidx);
+	lua_newtable(L);
+	lua_settable(L, -3);
 	lua_pop(L, 1);
 }
 
@@ -1583,7 +1564,6 @@ luacs_object__gc(lua_State *L)
 		lua_pcall(L, 1, 0, 0);
 	}
 	luacs_unref(L, obj->typref);
-	luacs_deleteusertable(L, 1);
 
 	return (0);
 }
