@@ -288,7 +288,8 @@ luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 {
 	int			 ret;
 	struct luacstruct	*cs, *supercs = NULL;
-	char			 metaname[METANAMELEN], buf[128];
+	char			 metaname[METANAMELEN], metaname0[METANAMELEN],
+				 buf[128];
 	struct luacstruct_field	*fieldf, *fieldt;
 
 	/* Use if already exists */
@@ -302,9 +303,9 @@ luacs_newstruct0(lua_State *L, const char *tname, const char *supertname)
 
 	/* Prepare the super struct */
 	if (supertname != NULL) {
-		snprintf(metaname, sizeof(metaname), "%s%s", METANAME_LUACTYPE,
-		    supertname);
-		lua_getfield(L, LUA_REGISTRYINDEX, metaname);
+		snprintf(metaname0, sizeof(metaname0), "%s%s",
+		    METANAME_LUACTYPE, supertname);
+		lua_getfield(L, LUA_REGISTRYINDEX, metaname0);
 		if (lua_isnil(L, -1)) {
 			snprintf(buf, sizeof(buf), "`%s' is not regisiterd",
 			    supertname);
