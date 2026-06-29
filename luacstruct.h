@@ -99,7 +99,7 @@ int	 luacs_newarraytype(lua_State *, const char *, enum luacstruct_type,
 		    sizeof((struct _type *)0)->_field),		\
 		    "`"#_field"' is an unsupported int type");	\
 		enum luacstruct_type _itype;			\
-		switch(sizeof(((struct _type *)0)->_field)) {	\
+		switch (sizeof(((struct _type *)0)->_field)) {	\
 		case 1:	_itype = LUACS_TINT8; break;		\
 		case 2:	_itype = LUACS_TINT16; break;		\
 		case 4:	_itype = LUACS_TINT32; break;		\
@@ -227,7 +227,7 @@ int	 luacs_newarraytype(lua_State *, const char *, enum luacstruct_type,
 		    sizeof((struct _type *)0)->_field[0]),	\
 		    "`"#_field"' is an unsupported int type");	\
 		enum luacstruct_type _itype;			\
-		switch(sizeof(((struct _type *)0)->_field[0])) {\
+		switch (sizeof(((struct _type *)0)->_field[0])) {\
 		case 1:	_itype = LUACS_TINT8; break;		\
 		case 2:	_itype = LUACS_TINT16; break;		\
 		case 4:	_itype = LUACS_TINT32; break;		\
