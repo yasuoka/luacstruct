@@ -702,7 +702,7 @@ luacs_newarray(lua_State *L, enum luacstruct_type _type, const char *membtname,
 			lua_error(L);
 		}
 		luacs_pushctype(L, _type, membtname);
-		typref = luacs_ref(L);
+		typref = -1;
 		break;
 	default:
 		break;
