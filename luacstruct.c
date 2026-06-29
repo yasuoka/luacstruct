@@ -233,6 +233,7 @@ static int	 luacs_array__newindex(lua_State *);
 static int	 luacs_array_copy(lua_State *);
 static int	 luacs_array__next(lua_State *);
 static int	 luacs_array__pairs(lua_State *);
+static int	 luacs_array__ipairs(lua_State *);
 static int	 luacs_array__gc(lua_State *);
 static int	 luacs_newobject0(lua_State *, void *);
 static int	 luacs_object__luacstructdump(struct lua_State *);
@@ -747,6 +748,9 @@ luacs_newarray0(lua_State *L, enum luacstruct_type _type, int typidx,
 		lua_pushcfunction(L, luacs_array__next);
 		lua_pushcclosure(L, luacs_array__pairs, 1);
 		lua_setfield(L, -2, "__pairs");
+		lua_pushcfunction(L, luacs_array__next);
+		lua_pushcclosure(L, luacs_array__ipairs, 1);
+		lua_setfield(L, -2, "__ipairs");
 		lua_pushcfunction(L, luacs_array__gc);
 		lua_setfield(L, -2, "__gc");
 	}
@@ -1082,6 +1086,19 @@ luacs_array__pairs(lua_State *L)
 	lua_pushvalue(L, lua_upvalueindex(1));
 	lua_pushvalue(L, 1);
 	lua_pushnil(L);
+
+	return (3);
+}
+
+int
+luacs_array__ipairs(lua_State *L)
+{
+	lua_settop(L, 1);
+	luaL_checkudata(L, 1, METANAME_LUACARRAY);
+
+	lua_pushvalue(L, lua_upvalueindex(1));
+	lua_pushvalue(L, 1);
+	lua_pushinteger(L, 0);
 
 	return (3);
 }
