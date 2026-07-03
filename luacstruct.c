@@ -746,6 +746,8 @@ luacs_newarray0(lua_State *L, enum luacstruct_type _type, int typidx,
 		lua_pushcfunction(L, luacs_array__newindex);
 		lua_setfield(L, -2, "__newindex");
 		lua_pushcfunction(L, luacs_array__next);
+		lua_setfield(L, -2, "__next");
+		lua_pushcfunction(L, luacs_array__next);
 		lua_pushcclosure(L, luacs_array__pairs, 1);
 		lua_setfield(L, -2, "__pairs");
 		lua_pushcfunction(L, luacs_array__next);
@@ -1170,6 +1172,8 @@ luacs_newobject0(lua_State *L, void *ptr)
 		lua_setfield(L, -2, "__index");
 		lua_pushcfunction(L, luacs_object__newindex);
 		lua_setfield(L, -2, "__newindex");
+		lua_pushcfunction(L, luacs_object__next);
+		lua_setfield(L, -2, "__next");
 		lua_pushcfunction(L, luacs_object__next);
 		lua_pushcclosure(L, luacs_object__pairs, 1);
 		lua_setfield(L, -2, "__pairs");
@@ -1954,6 +1958,8 @@ luacs_newenum0(lua_State *L, const char *ename, size_t valwidth)
 		lua_setfield(L, -2, "__gc");
 		lua_pushcfunction(L, luacs_enum__index);
 		lua_setfield(L, -2, "__index");
+		lua_pushcfunction(L, luacs_enum__next);
+		lua_setfield(L, -2, "__next");
 		lua_pushcfunction(L, luacs_enum__next);
 		lua_pushcclosure(L, luacs_enum__pairs, 1);
 		lua_setfield(L, -2, "__pairs");
