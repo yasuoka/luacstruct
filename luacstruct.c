@@ -795,6 +795,7 @@ luacs_array__index(lua_State *L)
 	region.off = (idx - 1) * obj->size;
 	region.size = obj->size;
 	region.typref = obj->typref;
+	region.flags = obj->flags;
 
 	switch (obj->type)  {
 	default:
