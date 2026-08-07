@@ -33,6 +33,7 @@ local main = function()
     p.name = "こんにちわ"
     assert(p.name == "こんにちわ")
     assert(p.nameptr == "こんにちわ")
+    assert(p.name == p.nameptr)
 
     test_wstr.test(p)	-- test in C
 
@@ -43,11 +44,14 @@ local main = function()
     -- error if too long
     ret, err = pcall(function() p.name = string.rep("A", 129) end)
     assert(not ret)
-    -- can have 128 kanji
+    -- can have 32 kanji and ptr is also ok
+    ret, err = pcall(function() p.name = string.rep("日", 32) end)
+    assert(ret)
+    assert(p.name == p.nameptr)
+    -- can have 128 kanji, but no null terminated
     ret, err = pcall(function() p.name = string.rep("日", 128) end)
     assert(ret)
-    p = nil
-
+    assert(p.name == string.rep("日", 128))
 
     local test_extra = require("test_extra")
     --

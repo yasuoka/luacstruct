@@ -2,7 +2,7 @@ LUA?=		lua51
 LUA_CFLAGS!!=	pkg-config --cflags ${LUA}
 LUA_LDADD!!=	pkg-config --libs ${LUA}
 
-CFLAGS=		--shared -fPIC -DLUACS_DEBUG -fvisibility=hidden
+CFLAGS=		--shared -fPIC -DLUACS_DEBUG -fvisibility=hidden -O0 -g
 CFLAGS+=	-I${.CURDIR}/.. ${LUA_CFLAGS}
 
 all: test
