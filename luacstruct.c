@@ -1710,24 +1710,23 @@ luacs_pushregion(lua_State *L, struct luacobject *obj,
 		break;
 	case LUACS_TWSTRING:
 	    {
-		wchar_t		*wstr;
+		wchar_t		*wstr, *wstr1;
 		char		 buf[128];
 		size_t		 wstrlen, wstrmax;
 
-		wstr = (wchar_t *)obj->ptr;
+		wstr = (wchar_t *)(obj->ptr + region->off);
 		wstrmax = region->size / sizeof(wchar_t);
 		wstrlen = wcsnlen(wstr, wstrmax);
 		if (wstrlen == wstrmax) {
 			wstrmax++;	/* for the null character */
-			if ((wstr = calloc(sizeof(wchar_t), wstrmax)) == NULL) {
+			if ((wstr1 = calloc(sizeof(wchar_t), wstrmax)) == NULL) {
 				strerror_r(errno, buf, sizeof(buf));
 				lua_pushstring(L, buf);
 				abort();
 			}
-			memcpy(wstr, wstr, region->size);
-			wstr[wstrlen] = L'\0';
-			luacs_pushwstring(L, wstr);
-			free(wstr);
+			memcpy(wstr1, wstr, wstrlen * sizeof(wchar_t));
+			luacs_pushwstring(L, wstr1);
+			free(wstr1);
 		} else
 			luacs_pushwstring(L, wstr);
 		break;
@@ -1896,25 +1895,26 @@ luacs_pullregion(lua_State *L, struct luacobject *obj,
 		break;
 	case LUACS_TWSTRING:
 	    {
-		size_t	wstrsiz;
+		size_t	wstrlen, wstrmax;
 
 		luaL_checkstring(L, absidx);
-		if ((wstrsiz = mbstowcs(NULL, lua_tostring(L, absidx), 0)) ==
+		if ((wstrlen = mbstowcs(NULL, lua_tostring(L, absidx), 0)) ==
 		    (size_t)-1) {
 			luaL_error(L,
 			    "the string contains an invalid character");
 			abort();
 		}
-		wstrsiz *= sizeof(wchar_t);
-		luaL_argcheck(L, wstrsiz <= region->size, absidx, "too long");
-		if (mbstowcs((wchar_t *)(obj->ptr + region->off),
-		    lua_tostring(L, absidx), wstrsiz) == (size_t)-1) {
+		wstrmax = region->size / sizeof(wchar_t);
+		luaL_argcheck(L, wstrlen <= wstrmax, absidx, "too long");
+		if (wstrlen == 0) {
+			if (wstrmax > 0)
+				*(wchar_t *)(obj->ptr + region->off) = L'\0';
+		} else if (mbstowcs((wchar_t *)(obj->ptr + region->off),
+		    lua_tostring(L, absidx), wstrmax) == (size_t)-1) {
 			luaL_error(L,
 			    "the string contains an invalid character");
 			abort();
 		}
-		if (wstrsiz + sizeof(wchar_t) <= region->size)
-			*(wchar_t *)(obj->ptr + region->off + wstrsiz) = L'\0';
 		break;
 	    }
 	case LUACS_TOBJREF:
