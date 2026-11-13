@@ -1719,7 +1719,7 @@ luacs_pushregion(lua_State *L, struct luacobject *obj,
 		wstrlen = wcsnlen(wstr, wstrmax);
 		if (wstrlen == wstrmax) {
 			wstrmax++;	/* for the null character */
-			if ((wstr1 = calloc(sizeof(wchar_t), wstrmax)) == NULL) {
+			if ((wstr1 = calloc(wstrmax, sizeof(wchar_t))) == NULL) {
 				strerror_r(errno, buf, sizeof(buf));
 				lua_pushstring(L, buf);
 				abort();
