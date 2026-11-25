@@ -1775,67 +1775,74 @@ void
 luacs_pullregion(lua_State *L, struct luacobject *obj,
     struct luacregion *region, int idx)
 {
-	size_t		 siz;
-	int		 absidx;
-	intmax_t	 ival;
-	uintmax_t	 uval;
+	size_t			 siz;
+	int			 absidx;
+	intmax_t		 ival = 0;
+	uintmax_t		 uval;
+	struct luacenum_value	*eval;
 
 	absidx = lua_absindex(L, idx);
+	/* Use as an integer value if the rval is an enum */
+	lua_getmetatable(L, absidx);
+	lua_getfield(L, LUA_REGISTRYINDEX, METANAME_LUACSENUMVAL);
+	if (lua_rawequal(L, -2, -1)) {
+		eval = luaL_checkudata(L, absidx, METANAME_LUACSENUMVAL);
+		ival = eval->value;
+	} else
+		ival = lua_tointeger(L, absidx);
+	lua_pop(L, 2);
 
 	switch (region->type) {
 	case LUACS_TINT8:
-		*(int8_t *)(obj->ptr + region->off) = lua_tointeger(L, absidx);
+		*(int8_t *)(obj->ptr + region->off) = (int8_t)ival;
 		break;
 	case LUACS_TUINT8:
-		*(uint8_t *)(obj->ptr + region->off) = lua_tointeger(L, absidx);
+		*(uint8_t *)(obj->ptr + region->off) = (uint8_t)ival;
 		break;
 	case LUACS_TINT16:
-		ival = lua_tointeger(L, absidx);
 		if ((region->flags & LUACS_FENDIANBIG) != 0)
-			ival = htobe16(ival);
+			ival = htobe16((int16_t)ival);
 		else if ((region->flags & LUACS_FENDIANLITTLE) != 0)
-			ival = htole16(ival);
-		*(int16_t *)(obj->ptr + region->off) = ival;
+			ival = htole16((int16_t)ival);
+		*(int16_t *)(obj->ptr + region->off) = (int16_t)ival;
 		break;
 	case LUACS_TUINT16:
-		uval = lua_tointeger(L, absidx);
+		uval = ival;
 		if ((region->flags & LUACS_FENDIANBIG) != 0)
-			uval = htobe16(uval);
+			uval = htobe16((uint16_t)uval);
 		else if ((region->flags & LUACS_FENDIANLITTLE) != 0)
-			uval = htole16(uval);
-		*(uint16_t *)(obj->ptr + region->off) = uval;
+			uval = htole16((uint16_t)uval);
+		*(uint16_t *)(obj->ptr + region->off) = (uint16_t)uval;
 		break;
 	case LUACS_TINT32:
-		ival = lua_tointeger(L, absidx);
 		if ((region->flags & LUACS_FENDIANBIG) != 0)
-			ival = htobe32(ival);
+			ival = htobe32((int32_t)ival);
 		else if ((region->flags & LUACS_FENDIANLITTLE) != 0)
-			ival = htole32(ival);
-		*(int32_t *)(obj->ptr + region->off) = ival;
+			ival = htole32((int32_t)ival);
+		*(int32_t *)(obj->ptr + region->off) = (int32_t)ival;
 		break;
 	case LUACS_TUINT32:
-		uval = lua_tointeger(L, absidx);
+		uval = ival;
 		if ((region->flags & LUACS_FENDIANBIG) != 0)
-			uval = htobe32(uval);
+			uval = htobe32((uint32_t)uval);
 		else if ((region->flags & LUACS_FENDIANLITTLE) != 0)
-			uval = htole32(uval);
-		*(uint32_t *)(obj->ptr + region->off) = uval;
+			uval = htole32((uint32_t)uval);
+		*(uint32_t *)(obj->ptr + region->off) = (uint32_t)uval;
 		break;
 	case LUACS_TINT64:
-		ival = lua_tointeger(L, absidx);
 		if ((region->flags & LUACS_FENDIANBIG) != 0)
-			ival = htobe64(ival);
+			ival = htobe64((int64_t)ival);
 		else if ((region->flags & LUACS_FENDIANLITTLE) != 0)
-			ival = htole64(ival);
-		*(int64_t *)(obj->ptr + region->off) = ival;
+			ival = htole64((int64_t)ival);
+		*(int64_t *)(obj->ptr + region->off) = (int64_t)ival;
 		break;
 	case LUACS_TUINT64:
-		uval = lua_tointeger(L, absidx);
+		uval = ival;
 		if ((region->flags & LUACS_FENDIANBIG) != 0)
-			uval = htobe64(uval);
+			uval = htobe64((uint64_t)uval);
 		else if ((region->flags & LUACS_FENDIANLITTLE) != 0)
-			uval = htole64(uval);
-		*(uint64_t *)(obj->ptr + region->off) = uval;
+			uval = htole64((uint64_t)uval);
+		*(uint64_t *)(obj->ptr + region->off) = (uint64_t)uval;
 		break;
 	case LUACS_TBOOL:
 		*(bool *)(obj->ptr + region->off) = lua_toboolean(L, absidx);
@@ -1850,7 +1857,7 @@ luacs_pullregion(lua_State *L, struct luacobject *obj,
 		luacs_getref(L, region->typref);
 		ce = luacs_checkenum(L, -1);
 		if (lua_type(L, absidx) == LUA_TNUMBER) {
-			value = lua_tointeger(L, absidx);
+			value = ival;
 			if (luacs_enum_get0(ce, value) == NULL) {
 				lua_pushfstring(L,
 				    "must be a valid integer for `enum %s'",
