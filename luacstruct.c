@@ -38,7 +38,7 @@
  * avoid the problems.
  */
 #ifndef LUACS_VARIANT
-#define LUACS_VARIANT		"3"
+#define LUACS_VARIANT		"4"
 #endif
 
 #define	METANAMELEN		80
@@ -160,7 +160,7 @@ struct luacarraytype {
 
 struct luacregion {
 	enum luacstruct_type		 type;
-	int				 off;
+	size_t				 off;
 	size_t				 size;
 	int				 typref;
 	unsigned			 flags;
@@ -778,17 +778,19 @@ luacs_array__index(lua_State *L)
 {
 	struct luacobject	*obj;
 	struct luacarraytype	*cat;
+	intmax_t		 idx0;
 	int			 idx;
 	struct luacregion	 region;
 	void			*ptr;
 
 	lua_settop(L, 2);
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
-	idx = luaL_checkinteger(L, 2);
-	if (idx < 1 || obj->nmemb < idx) {
+	idx0 = luaL_checkinteger(L, 2);
+	if (idx0 < 1 || obj->nmemb < idx0) {
 		lua_pushnil(L);
 		return (1);
 	}
+	idx = (int)idx0;
 	memset(&region, 0, sizeof(region));
 
 	region.type = obj->type;
@@ -863,18 +865,20 @@ int
 luacs_array__newindex(lua_State *L)
 {
 	struct luacobject	*obj, *ano = NULL;
+	intmax_t		 idx0;
 	int			 idx;
 	struct luacregion	 region;
 	struct luacstruct	*cs0;
 
 	lua_settop(L, 3);
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
-	idx = luaL_checkinteger(L, 2);
-	if (idx < 1 || obj->nmemb < idx) { /* out of the range */
-		lua_pushfstring(L, "array index %d out of the range 1:%d",
-		    idx, obj->nmemb);
+	idx0 = luaL_checkinteger(L, 2);
+	if (idx0 < 1 || obj->nmemb < idx0) { /* out of the range */
+		lua_pushfstring(L, "array index %jd out of the range 1:%d",
+		    idx0, obj->nmemb);
 		lua_error(L);
 	}
+	idx = (int)idx0;
 	region.type = obj->type;
 	region.off = (idx - 1) * obj->size;
 	region.size = obj->size;
@@ -1060,18 +1064,20 @@ int
 luacs_array__next(lua_State *L)
 {
 	struct luacobject	*obj;
+	intmax_t		 idx0 = 0;
 	int			 idx = 0;
 
 	lua_settop(L, 2);
 	obj = luaL_checkudata(L, 1, METANAME_LUACARRAY);
 	if (!lua_isnil(L, 2))
-		idx = luaL_checkinteger(L, 2);
+		idx0 = luaL_checkinteger(L, 2);
 
-	idx++;
-	if (idx < 1 || obj->nmemb < idx) {
+	idx0++;
+	if (idx0 < 1 || obj->nmemb < idx0) {
 		lua_pushnil(L);
 		return (1);
 	}
+	idx = (int)idx0;
 	lua_pushinteger(L, idx);
 	lua_pushcfunction(L, luacs_array__index);
 	lua_pushvalue(L, 1);
@@ -1634,69 +1640,73 @@ int
 luacs_pushregion(lua_State *L, struct luacobject *obj,
     struct luacregion *region)
 {
-	intmax_t	 ival;
-	uintmax_t	 uval;
+	int16_t		 i16;
+	int32_t		 i32;
+	int64_t		 i64;
+	uint16_t	 u16;
+	uint32_t	 u32;
+	uint64_t	 u64;
 
 	switch (region->type) {
 	case LUACS_TINT8:
 		lua_pushinteger(L, *(int8_t *)(obj->ptr + region->off));
 		break;
 	case LUACS_TINT16:
-		ival = *(int16_t *)(obj->ptr + region->off);
+		i16 = *(int16_t *)(obj->ptr + region->off);
 		if ((region->flags & LUACS_FENDIAN) == 0)
-			lua_pushinteger(L, ival);
+			lua_pushinteger(L, i16);
 		else if ((region->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, be16toh(ival));
+			lua_pushinteger(L, be16toh(i16));
 		else
-			lua_pushinteger(L, le16toh(ival));
+			lua_pushinteger(L, le16toh(i16));
 		break;
 	case LUACS_TINT32:
-		ival = *(int32_t *)(obj->ptr + region->off);
+		i32 = *(int32_t *)(obj->ptr + region->off);
 		if ((region->flags & LUACS_FENDIAN) == 0)
-			lua_pushinteger(L, ival);
+			lua_pushinteger(L, i32);
 		else if ((region->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, be32toh(ival));
+			lua_pushinteger(L, be32toh(i32));
 		else
-			lua_pushinteger(L, le32toh(ival));
+			lua_pushinteger(L, le32toh(i32));
 		break;
 	case LUACS_TINT64:
-		ival = *(int64_t *)(obj->ptr + region->off);
+		i64 = *(int64_t *)(obj->ptr + region->off);
 		if ((region->flags & LUACS_FENDIAN) == 0)
-			lua_pushinteger(L, ival);
+			lua_pushinteger(L, i64);
 		else if ((region->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, be64toh(ival));
+			lua_pushinteger(L, be64toh(i64));
 		else
-			lua_pushinteger(L, le64toh(ival));
+			lua_pushinteger(L, le64toh(i64));
 		break;
 	case LUACS_TUINT8:
 		lua_pushinteger(L, *(uint8_t *)(obj->ptr + region->off));
 		break;
 	case LUACS_TUINT16:
-		uval = *(uint16_t *)(obj->ptr + region->off);
+		u16 = *(uint16_t *)(obj->ptr + region->off);
 		if ((region->flags & LUACS_FENDIAN) == 0)
-			lua_pushinteger(L, uval);
+			lua_pushinteger(L, u16);
 		else if ((region->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, be16toh(uval));
+			lua_pushinteger(L, be16toh(u16));
 		else
-			lua_pushinteger(L, le16toh(uval));
+			lua_pushinteger(L, le16toh(u16));
 		break;
 	case LUACS_TUINT32:
-		uval = *(uint32_t *)(obj->ptr + region->off);
+		u32 = *(uint32_t *)(obj->ptr + region->off);
 		if ((region->flags & LUACS_FENDIAN) == 0)
-			lua_pushinteger(L, uval);
+			lua_pushinteger(L, u32);
 		else if ((region->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, be32toh(uval));
+			lua_pushinteger(L, be32toh(u32));
 		else
-			lua_pushinteger(L, le32toh(uval));
+			lua_pushinteger(L, le32toh(u32));
 		break;
 	case LUACS_TUINT64:
-		uval = *(uint64_t *)(obj->ptr + region->off);
+		u64 = *(uint64_t *)(obj->ptr + region->off);
 		if ((region->flags & LUACS_FENDIAN) == 0)
-			lua_pushinteger(L, uval);
+			lua_pushinteger(L, u64);
 		else if ((region->flags & LUACS_FENDIANBIG) != 0)
-			lua_pushinteger(L, be64toh(uval));
+			lua_pushinteger(L, be64toh(u64));
 		else
-			lua_pushinteger(L, le64toh(uval));
+			lua_pushinteger(L, le64toh(u64));
 		break;
 	case LUACS_TBOOL:
 		lua_pushboolean(L, *(bool *)(obj->ptr + region->off));
@@ -1884,10 +1894,10 @@ luacs_pullregion(lua_State *L, struct luacobject *obj,
 
 		ptr = obj->ptr + region->off;
 		switch (region->size) {
-		case 1: *(int8_t  *)(ptr) = value; break;
-		case 2: *(int16_t *)(ptr) = value; break;
-		case 4: *(int32_t *)(ptr) = value; break;
-		case 8: *(int64_t *)(ptr) = value; break;
+		case 1: *(int8_t  *)(ptr) = (int8_t)value; break;
+		case 2: *(int16_t *)(ptr) = (int16_t)value; break;
+		case 4: *(int32_t *)(ptr) = (int32_t)value; break;
+		case 8: *(int64_t *)(ptr) = (int64_t)value; break;
 		}
 	}
 		break;
@@ -2153,7 +2163,8 @@ luacs_enum__gc(lua_State *L)
 int
 luacs_enum_declare_value(lua_State *L, const char *label, intmax_t value)
 {
-	int			 ret, llabel;
+	int			 ret;
+	size_t			 llabel;
 	struct luacenum_value	*val;
 	struct luacenum		*ce;
 
@@ -2290,7 +2301,7 @@ luacenum_value_cmp(struct luacenum_value *a, struct luacenum_value *b)
 	return ((cmp == 0)? 0 : (cmp < 0)? -1 : 1);
 }
 
-int
+intmax_t
 luacs_checkenumval(lua_State *L, int idx, const char *enumname)
 {
 	struct luacenum_value	*val;
